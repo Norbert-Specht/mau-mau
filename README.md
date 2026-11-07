@@ -8,8 +8,8 @@ Play against 1–3 bots or with friends over a shared link — no accounts, no b
 | Step | What | Status |
 |---|---|---|
 | 1 | Project scaffold + pure game engine + Vitest tests | ✅ done |
-| 2 | Local game vs. bots with Kenney card art | ⏳ next |
-| 3 | PeerJS multiplayer with shared links | — |
+| 2 | Local game vs. bots with Kenney card art | ✅ done |
+| 3 | PeerJS multiplayer with shared links | ⏳ next |
 | 4 | Vercel deployment (auto-deploy from `main`) | — |
 
 ## Setup
@@ -25,7 +25,7 @@ npm install
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Start the Vite dev server |
+| `npm run dev` | Start the Vite dev server, then open the printed localhost URL to play |
 | `npm test` | Run all Vitest tests once |
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run build` | Type-check and build the static site into `dist/` |
@@ -45,8 +45,31 @@ src/engine/   Pure game engine — no DOM, no network
   setup.ts      createGame, startNextRound, startNewMatch
   applyMove.ts  The referee: validates and applies moves
   visible.ts    getVisibleState, redactEvents (hide private info)
-tests/engine/ Vitest tests for every rule, plus random full-game simulations
+src/bot/      chooseMove(visibleState, rules, difficulty)
+src/game/     Runs a table: controller (engine + bot turns), connection, saved profile
+src/ui/       DOM: setup screen, table view, card elements, animations, log text
+src/i18n/     strings.ts — every UI string, in one place for translation
+public/cards/ Kenney card PNGs (7–Ace of each suit + card back) and their license
+tests/        Vitest tests for the engine and the bots
 ```
+
+## How to play
+
+- Pick your name, 1–3 opponents, bot strength, and (optionally) change the rules, then **Start game**.
+- Tap a bright card to play it; dimmed cards don't fit. A **Bube** asks *Ich wünsche mir…* — pick a suit.
+- Tap the draw pile or **Draw** if you can't (or don't want to) play. If the drawn card fits, play it or tap **Keep card**.
+- Press **Mau!** before playing your second-to-last card, or you draw a penalty card.
+- The round ends when someone has no cards left (*Mau-Mau!*). With scoring on, a points table follows each round.
+
+## Bots
+
+Bots see only what a human in their seat would see (`VisibleState`). They move after 700 ms so you can follow along, and always call Mau.
+
+| Level | Strategy |
+|---|---|
+| Easy | Random legal card, random wish |
+| Normal | Plays any other card before a Jack; wishes the suit it holds most of; plays 7s/8s when the next player has ≤ 2 cards; sheds high-point cards first |
+| Hard | Normal + counts the cards it has seen, prefers cards opponents are unlikely to follow, and wishes suits that are mostly played out |
 
 ## Engine API
 
@@ -96,4 +119,4 @@ Fixed behavior:
 
 ## Asset license
 
-Card art (from step 2): [Kenney "Playing Cards Pack"](https://kenney.nl/assets/playing-cards-pack), released under **CC0** (public domain). No attribution is required, but credit goes to Kenney.
+Card art: [Kenney "Playing Cards Pack"](https://kenney.nl/assets/playing-cards-pack), released under **CC0** (public domain). No attribution is required, but credit goes to Kenney. The original license text is in `public/cards/LICENSE-kenney.txt`. Only the 7–Ace cards of each suit and one card back are included.

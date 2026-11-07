@@ -1,0 +1,731 @@
+/* ==========================================================================
+   Mau-Mau styles
+   Mobile-first (phone portrait), light and dark mode via color tokens.
+   ========================================================================== */
+
+/* ---------------------------- Color tokens ---------------------------- */
+:root {
+  color-scheme: light dark;
+  --bg: #e9efe9;
+  --text: #1c2420;
+  --muted: #5b6a61;
+  /* Classic card-table green; the edge tone is the vignette at the borders. */
+  --felt: #2e7a4d;
+  --felt-edge: #215a38;
+  --on-felt: #f3f7f2;
+  --on-felt-muted: rgba(243, 247, 242, 0.72);
+  --panel: #ffffff;
+  --panel-border: #d4ddd6;
+  --primary: #1f6f43;
+  --primary-text: #ffffff;
+  /* Warm yellow highlights whose turn it is; stands out on green in both themes. */
+  --accent: #f5c542;
+  --danger: #d9443c;
+  --red-suit: #d33a3a;
+  --black-suit: #1c1c1c;
+  --suit-bg: #ffffff;
+  --shadow: rgba(0, 0, 0, 0.28);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101512;
+    --text: #e6ece7;
+    --muted: #9aaa9f;
+    --felt: #1b4a30;
+    --felt-edge: #10301e;
+    --panel: #1b221e;
+    --panel-border: #2e3a33;
+    --primary: #3fa36b;
+    --suit-bg: #f1f1ee;
+    --shadow: rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* ---------------------------- Base ---------------------------- */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Stops double-tap zoom on fast card taps (mobile Safari/Chrome). */
+  touch-action: manipulation;
+}
+
+#app {
+  min-height: 100%;
+}
+
+/* ---------------------------- Buttons ---------------------------- */
+.btn {
+  font: inherit;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  min-height: 44px; /* Apple's minimum comfortable touch target */
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btn--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-text);
+}
+
+.btn--big {
+  width: 100%;
+  font-size: 1.1rem;
+  padding: 0.8rem 1rem;
+}
+
+.btn--small {
+  min-height: 34px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.btn:focus-visible,
+.card:focus-visible,
+.pile--draw:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------- Setup screen ---------------------------- */
+.setup {
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+}
+
+.setup__header h1 {
+  margin: 0;
+  font-size: 2.4rem;
+  letter-spacing: -0.02em;
+}
+
+.setup__header p {
+  margin: 0.25rem 0 1.5rem;
+  color: var(--muted);
+}
+
+.setup__form {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.4rem;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.field > span,
+.field > legend {
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: 0.4rem;
+}
+
+.field input[type='text'],
+.field input:not([type]),
+select {
+  font: inherit;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--text);
+}
+
+/* Radio buttons styled as a segmented control. */
+.segmented {
+  display: flex;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.segmented label {
+  flex: 1;
+}
+
+.segmented input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented span {
+  display: block;
+  text-align: center;
+  padding: 0.65rem 0.5rem;
+  cursor: pointer;
+}
+
+.segmented input:checked + span {
+  background: var(--primary);
+  color: var(--primary-text);
+  font-weight: 600;
+}
+
+.segmented input:focus-visible + span {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+
+.rules {
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 0.25rem 0.9rem;
+}
+
+.rules summary {
+  font-weight: 600;
+  padding: 0.6rem 0;
+  cursor: pointer;
+}
+
+.rules__list {
+  display: grid;
+  gap: 0.15rem;
+  padding-bottom: 0.6rem;
+}
+
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  cursor: pointer;
+}
+
+.rule input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--primary);
+}
+
+.rule--number {
+  justify-content: space-between;
+}
+
+.rule--disabled {
+  opacity: 0.45;
+}
+
+/* ---------------------------- Cards ---------------------------- */
+/* Kenney cards are 64×64 PNGs with the card body (42×60) centred.
+   background-size 152.381% = 64/42, which crops the transparent side margins;
+   centring works because the margins are equal on both sides. */
+:root {
+  /* 18vw ≈ 67px on a 375px phone: 5 cards fit side by side with room to fan. */
+  --card-w: clamp(54px, 18vw, 96px);
+  --mini-w: clamp(22px, 6vw, 30px);
+}
+
+.card {
+  display: block;
+  width: var(--card-w);
+  aspect-ratio: 42 / 60;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  background-size: 152.381% auto;
+  background-position: center;
+  background-repeat: no-repeat;
+  /* Keep the pixel art crisp when scaled up. */
+  image-rendering: pixelated;
+  /* drop-shadow follows the card's transparent corners, unlike box-shadow. */
+  filter: drop-shadow(0 2px 3px var(--shadow));
+  border-radius: 8%;
+}
+
+.card--ghost {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+}
+
+/* ---------------------------- Table layout ---------------------------- */
+/* One full-height column: top bar, opponents, piles, status/log, actions, hand. */
+.table {
+  height: 100vh;
+  height: 100dvh; /* dvh excludes mobile browser bars where supported */
+  display: grid;
+  grid-template-rows: auto auto 1fr auto auto auto auto;
+  background: radial-gradient(ellipse at center, var(--felt) 55%, var(--felt-edge) 100%);
+  color: var(--on-felt);
+  overflow: hidden;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+}
+
+.topbar .btn {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: transparent;
+  color: var(--on-felt);
+}
+
+.topbar__round {
+  font-size: 0.85rem;
+  color: var(--on-felt-muted);
+}
+
+/* ---------------------------- Opponents ---------------------------- */
+.opponents {
+  display: flex;
+  justify-content: space-around;
+  gap: 8px;
+  padding: 4px 16px;
+}
+
+.seat {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 10px 8px;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  min-width: 84px;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.seat--active {
+  border-color: var(--accent);
+  background: rgba(245, 197, 66, 0.12);
+}
+
+.seat__cards {
+  display: flex;
+  height: calc(var(--mini-w) * 60 / 42);
+  min-width: var(--mini-w);
+}
+
+.seat__cards .card {
+  width: var(--mini-w);
+}
+
+/* Overlap the small backs so a full hand stays compact. */
+.seat__cards .card + .card {
+  margin-left: calc(var(--mini-w) * -0.6);
+}
+
+.seat__name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seat__count {
+  font-size: 0.75rem;
+  color: var(--on-felt-muted);
+}
+
+.seat__count--mau {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Speech bubble shown briefly when a bot calls Mau. */
+.seat__bubble {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  background: var(--accent);
+  color: #1c1c1c;
+  font-weight: 800;
+  font-size: 0.8rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.15s, transform 0.15s;
+  pointer-events: none;
+}
+
+.seat--mau .seat__bubble {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ---------------------------- Center: piles + suit ---------------------------- */
+.center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 5vw, 36px);
+  padding: 8px 16px;
+  min-height: 0;
+}
+
+.pile {
+  position: relative;
+  width: var(--card-w);
+  aspect-ratio: 42 / 60;
+}
+
+.pile--draw {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 8%;
+}
+
+.pile--draw:disabled {
+  cursor: default;
+}
+
+/* Glow on the draw pile when drawing is possible. */
+.pile--draw:not(:disabled) .pile__stack .card:last-child {
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+
+.pile__stack .card {
+  position: absolute;
+  inset: 0;
+}
+
+/* Offset the stacked backs by 2px each to suggest a thick pile. */
+.pile__stack .card:nth-child(2) {
+  transform: translate(-2px, -2px);
+}
+
+.pile__stack .card:nth-child(3) {
+  transform: translate(-4px, -4px);
+}
+
+.pile__count {
+  position: absolute;
+  bottom: -10px;
+  right: -10px;
+  min-width: 26px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.pile__slot {
+  position: absolute;
+  inset: 0;
+  transform: rotate(var(--tilt));
+}
+
+.pile__slot .card {
+  width: 100%;
+}
+
+.suit-indicator {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 70px;
+  font-size: 0.7rem;
+  color: var(--on-felt-muted);
+  text-align: center;
+}
+
+.suit-indicator__symbol {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--suit-bg);
+  font-size: 1.9rem;
+  line-height: 1;
+  box-shadow: 0 2px 4px var(--shadow);
+}
+
+/* After a Jack the wished suit gets the turn color, so it can't be missed. */
+.suit-indicator--wish .suit-indicator__symbol {
+  box-shadow: 0 0 0 3px var(--accent), 0 2px 4px var(--shadow);
+}
+
+.suit-indicator--wish .suit-indicator__label {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.suit--hearts,
+.suit--diamonds {
+  color: var(--red-suit);
+}
+
+.suit--clubs,
+.suit--spades {
+  color: var(--black-suit);
+}
+
+.suit-indicator__penalty {
+  min-height: 1.4em;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.suit-indicator__penalty:not(:empty) {
+  background: var(--danger);
+  padding: 0 8px;
+  border-radius: 999px;
+}
+
+/* ---------------------------- Status + log ---------------------------- */
+.status {
+  margin: 0;
+  padding: 2px 16px;
+  text-align: center;
+  font-weight: 700;
+  min-height: 1.5em;
+}
+
+.status--yours {
+  color: var(--accent);
+}
+
+.log {
+  list-style: none;
+  margin: 4px 16px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  /* Room for 3 lines on phones; older lines are clipped from the top. */
+  height: calc(3 * 1.35em + 12px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.log li {
+  /* Don't let flexbox squash lines into each other; overflow clips the oldest instead. */
+  flex: none;
+  color: var(--on-felt-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log li:last-child {
+  color: var(--on-felt);
+}
+
+/* ---------------------------- Actions ---------------------------- */
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 16px;
+}
+
+.actions .btn[hidden] {
+  display: none;
+}
+
+.btn--mau {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1c1c1c;
+  font-weight: 800;
+}
+
+.btn--pressed {
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
+  filter: brightness(0.85);
+}
+
+/* ---------------------------- Hand ---------------------------- */
+.hand-area {
+  /* Bottom padding leaves room for the fan's outer cards, which hang lower. */
+  padding: 18px 0 max(22px, env(safe-area-inset-bottom));
+  border-top: 2px solid transparent;
+  transition: background-color 0.2s;
+}
+
+.hand-area--active {
+  background: rgba(245, 197, 66, 0.08);
+  border-top-color: rgba(245, 197, 66, 0.5);
+}
+
+.hand {
+  display: flex;
+  justify-content: center;
+  padding: 10px 8px 4px;
+}
+
+.hand__slot {
+  flex: none;
+  transform-origin: 50% 120%;
+  transform: translateY(var(--drop, 0)) rotate(var(--angle, 0deg));
+}
+
+/* --step (set in JS) is the distance between card left edges. */
+.hand__slot + .hand__slot {
+  margin-left: calc(var(--step, var(--card-w)) - var(--card-w));
+}
+
+.hand .card {
+  cursor: default;
+  transition: translate 0.15s, filter 0.15s;
+}
+
+.hand .card--playable {
+  cursor: pointer;
+}
+
+.hand .card--playable:hover,
+.hand .card--playable:focus-visible {
+  translate: 0 -12px;
+}
+
+/* Illegal cards on your turn are darkened and desaturated. */
+.hand .card--unplayable {
+  filter: brightness(0.55) saturate(0.4) drop-shadow(0 2px 3px var(--shadow));
+}
+
+/* The card you just drew is marked so you can find it. */
+.hand .card--drawn {
+  translate: 0 -12px;
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+
+/* ---------------------------- Dialogs ---------------------------- */
+.dialog {
+  border: 0;
+  border-radius: 18px;
+  padding: 20px;
+  background: var(--panel);
+  color: var(--text);
+  width: min(92vw, 380px);
+  box-shadow: 0 10px 40px var(--shadow);
+  text-align: center;
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.dialog h2 {
+  margin: 0 0 12px;
+}
+
+.suit-picker__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.suit-btn {
+  font: inherit;
+  font-weight: 600;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 12px 8px;
+  border-radius: 14px;
+  border: 1px solid var(--panel-border);
+  background: var(--suit-bg);
+  color: #1c1c1c;
+  cursor: pointer;
+}
+
+.suit-btn span {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.suit-btn--hearts span,
+.suit-btn--diamonds span {
+  color: var(--red-suit);
+}
+
+.round-over__headline {
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.scores {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+  font-size: 0.95rem;
+}
+
+.scores th,
+.scores td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--panel-border);
+  text-align: right;
+}
+
+.scores th:first-child,
+.scores td:first-child {
+  text-align: left;
+}
+
+.scores__winner {
+  font-weight: 700;
+}
+
+.dialog__buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ---------------------------- Larger screens ---------------------------- */
+@media (min-width: 700px) {
+  .log {
+    height: calc(4 * 1.35em + 12px);
+    max-width: 520px;
+    width: calc(100% - 32px);
+    margin: 4px auto;
+  }
+}
+
+/* Short landscape phones: tighten vertical spacing. */
+@media (max-height: 560px) {
+  :root {
+    --card-w: clamp(44px, 9vw, 64px);
+  }
+  .log {
+    height: calc(2 * 1.35em + 12px);
+  }
+}
