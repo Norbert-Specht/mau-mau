@@ -9,8 +9,8 @@ Play against 1–3 bots or with friends over a shared link — no accounts, no b
 |---|---|---|
 | 1 | Project scaffold + pure game engine + Vitest tests | ✅ done |
 | 2 | Local game vs. bots with Kenney card art | ✅ done |
-| 3 | PeerJS multiplayer with shared links | ⏳ next |
-| 4 | Vercel deployment (auto-deploy from `main`) | — |
+| 3 | PeerJS multiplayer with shared links | ✅ done |
+| 4 | Vercel deployment (auto-deploy from `main`) | ⏳ next |
 
 ## Setup
 
@@ -47,10 +47,11 @@ src/engine/   Pure game engine — no DOM, no network
   visible.ts    getVisibleState, redactEvents (hide private info)
 src/bot/      chooseMove(visibleState, rules, difficulty)
 src/game/     Runs a table: controller (engine + bot turns), connection, saved profile
+src/net/      Multiplayer: protocol, host (referee), guest, PeerJS transport, room links
 src/ui/       DOM: setup screen, table view, card elements, animations, log text
 src/i18n/     strings.ts — every UI string, in one place for translation
 public/cards/ Kenney card PNGs (7–Ace of each suit + card back) and their license
-tests/        Vitest tests for the engine and the bots
+tests/        Vitest tests for the engine, the bots, and host/guest sessions (fake network)
 ```
 
 ## How to play
@@ -59,7 +60,28 @@ tests/        Vitest tests for the engine and the bots
 - Tap a bright card to play it; dimmed cards don't fit. A **Bube** asks *Ich wünsche mir…* — pick a suit.
 - Tap the draw pile or **Draw** if you can't (or don't want to) play. If the drawn card fits, play it or tap **Keep card**.
 - Press **Mau!** before playing your second-to-last card, or you draw a penalty card.
+- In multiplayer, only the host can deal the next round.
 - The round ends when someone has no cards left (*Mau-Mau!*). With scoring on, a points table follows each round.
+
+## Playing with friends
+
+1. On the main menu, tap **Create game**. You get a link like `https://<site>/#room=k3m9xq2a` — tap **Copy link** and send it.
+2. Friends open the link, enter a name and tap **Join**. No accounts, no login.
+3. Optionally **Add bot** (any strength) to fill seats — up to 4 players in total. Then **Start game**.
+
+How it works:
+
+- The host's browser is the referee: it runs the engine and the bots. Guests only send move intents and only ever receive their own view (their hand, other players' card counts). Cards drawn by others are hidden.
+- Connections are direct browser-to-browser (WebRTC via [PeerJS](https://peerjs.com/)). The free public PeerJS server is only used to find each other. PeerJS is loaded only when you play online, so games against bots work offline.
+- Each browser keeps a random player id and name in localStorage. Reloading the page (or reopening the link) puts you back in your seat with the same cards.
+- If a player drops out, they stay seated and are shown as offline; the game waits on their turn ("Waiting for … to reconnect"). Guests reconnect automatically after short connection losses.
+- If the host closes their tab, everyone sees "The host closed the game".
+- Player ids are never shared: inside the game everyone is known by a seat number, and the host always applies a guest's move to that guest's own seat.
+
+Things to know:
+
+- **The host's tab must stay open** for the whole game — closing or reloading it ends the game. Browsers also slow down background tabs, so bots move slower while the host's tab is hidden.
+- PeerJS uses public STUN servers but no TURN relay, so on some strict networks (some company or mobile networks) a direct connection can't be made. Joining then shows a connection error.
 
 ## Bots
 

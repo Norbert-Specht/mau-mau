@@ -16,7 +16,7 @@ import {
   type Suit,
   type VisibleState,
 } from '../engine';
-import type { TableConnection } from '../game/connection';
+import type { ConnectionNotice, TableConnection, TableMeta } from '../game/connection';
 import { STRINGS, SUIT_NAMES, SUIT_SYMBOLS, suitText } from '../i18n/strings';
 import { flyFrom, flyGhostCard, pulse } from './animate';
 import { createCardEl } from './cardView';
@@ -51,9 +51,11 @@ export function mountTable(root: HTMLElement, conn: TableConnection, onLeave: ()
 
 class TableView {
   private view: VisibleState | null = null;
+  private meta: TableMeta = { connected: [] };
   private logLines: string[] = [];
   private roundDialogTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly unsubscribe: () => void;
+  private readonly unsubscribeNotice: () => void;
   private readonly el: {
     round: HTMLElement;
     opponents: HTMLElement;
@@ -73,6 +75,8 @@ class TableView {
     hand: HTMLElement;
     suitDialog: HTMLDialogElement;
     roundDialog: HTMLDialogElement;
+    notice: HTMLElement;
+    hostLeftDialog: HTMLDialogElement;
   };
 
   /**
@@ -88,6 +92,9 @@ class TableView {
   ) {
     root.innerHTML = `
       <div class="table">
+        <!-- Connection banner (multiplayer guests) -->
+        <div class="notice" role="status" hidden></div>
+
         <!-- Top bar: menu and round number -->
         <header class="topbar">
           <button type="button" class="btn btn--small" data-action="menu">${STRINGS.menu}</button>
@@ -136,7 +143,16 @@ class TableView {
       </dialog>
 
       <!-- Round / match result -->
-      <dialog class="dialog round-over"></dialog>`;
+      <dialog class="dialog round-over"></dialog>
+
+      <!-- Host closed the game (multiplayer guests) -->
+      <dialog class="dialog host-left">
+        <h2>${STRINGS.hostLeftTitle}</h2>
+        <p>${STRINGS.hostLeft}</p>
+        <div class="dialog__buttons">
+          <button type="button" class="btn btn--primary" data-host-left>${STRINGS.backToMenu}</button>
+        </div>
+      </dialog>`;
 
     const q = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
     this.el = {
@@ -158,13 +174,18 @@ class TableView {
       hand: q('.hand'),
       suitDialog: q('.suit-picker'),
       roundDialog: q('.round-over'),
+      notice: q('.notice'),
+      hostLeftDialog: q('.host-left'),
     };
 
     root.addEventListener('click', this.onClick);
     window.addEventListener('resize', this.onResize);
     // The result dialog must be closed with its buttons, not Escape.
     this.el.roundDialog.addEventListener('cancel', (e) => e.preventDefault());
+    this.el.hostLeftDialog.addEventListener('cancel', (e) => e.preventDefault());
+    this.el.hostLeftDialog.querySelector('[data-host-left]')!.addEventListener('click', () => this.leave());
     this.unsubscribe = conn.subscribe(this.onUpdate);
+    this.unsubscribeNotice = conn.subscribeNotice?.(this.onNotice) ?? (() => {});
   }
 
   /* ---------------------------- Updates ---------------------------- */
@@ -174,11 +195,13 @@ class TableView {
    * @param view - the new visible state
    * @param events - events that led to it
    * @param isNewDeal - true when cards were just dealt
+   * @param meta - who is online
    * @returns nothing
    */
-  private onUpdate = (view: VisibleState, events: GameEvent[], isNewDeal: boolean): void => {
+  private onUpdate = (view: VisibleState, events: GameEvent[], isNewDeal: boolean, meta: TableMeta): void => {
     const before = this.snapshot();
     this.view = view;
+    this.meta = meta;
 
     if (isNewDeal) {
       this.closeRoundDialog();
@@ -281,6 +304,8 @@ class TableView {
       el.className = 'seat';
       el.dataset.seat = String(seat);
       if (seat === v.current && (v.phase === 'playing' || v.phase === 'drawn')) el.classList.add('seat--active');
+      const online = this.meta.connected[seat] !== false;
+      if (!online) el.classList.add('seat--offline');
 
       const cards = document.createElement('div');
       cards.className = 'seat__cards';
@@ -292,7 +317,7 @@ class TableView {
 
       const count = document.createElement('div');
       count.className = 'seat__count';
-      count.textContent = STRINGS.cardsLeft(p.cardCount);
+      count.textContent = online ? STRINGS.cardsLeft(p.cardCount) : `${STRINGS.cardsLeft(p.cardCount)} · ${STRINGS.offlineBadge}`;
       if (p.cardCount === 1) count.classList.add('seat__count--mau');
 
       const bubble = document.createElement('span');
@@ -343,16 +368,20 @@ class TableView {
     const n = slots.length;
     if (n === 0) return;
     const cardW = slots[0].offsetWidth;
-    // Minus padding (16px) and half a card of slack: the fan rotation swings
-    // the outer cards' top corners outward by roughly that much.
-    const avail = this.el.hand.clientWidth - 16 - cardW * 0.5;
+    const cardH = slots[0].offsetHeight;
+    // Fan: up to 5° per card, total spread capped at ~36°.
+    const spread = Math.min(5, 36 / n);
+    const mid = (n - 1) / 2;
+    // The outermost cards rotate around a point 120% down the card (see
+    // .hand__slot transform-origin), so their top corners swing outward by
+    // about 1.2 × height × sin(angle). Keep that much room on each side.
+    const maxAngle = (spread * mid * Math.PI) / 180;
+    const swing = 1.2 * cardH * Math.sin(maxAngle);
+    const avail = this.el.hand.clientWidth - 16 - 2 * swing; // 16 = .hand side padding
     // Spread cards to fill the width, but never further apart than a small gap.
     // The 0.18 floor keeps the corner index of each card visible even with a huge hand.
     const step = n > 1 ? Math.max(cardW * 0.18, Math.min(cardW * 1.08, (avail - cardW) / (n - 1))) : cardW;
     this.el.hand.style.setProperty('--step', `${step}px`);
-    // Fan: up to 5° per card, total spread capped at ~36°.
-    const spread = Math.min(5, 36 / n);
-    const mid = (n - 1) / 2;
     slots.forEach((slot, i) => {
       const offset = i - mid;
       slot.style.setProperty('--angle', `${offset * spread}deg`);
@@ -371,7 +400,10 @@ class TableView {
       const w = v.roundWinner ?? 0;
       return STRINGS.roundWinner(v.players[w].name, w === v.you);
     }
-    if (v.current !== v.you) return STRINGS.theirTurn(v.players[v.current].name);
+    if (v.current !== v.you) {
+      const name = v.players[v.current].name;
+      return this.meta.connected[v.current] === false ? STRINGS.waitingFor(name) : STRINGS.theirTurn(name);
+    }
     if (v.phase === 'drawn') return STRINGS.statusDrawn;
     if (v.pendingDraw > 0) return STRINGS.statusPenalty(v.pendingDraw, this.conn.rules.sevenStacking);
     if (v.wishedSuit) return STRINGS.statusWish(suitText(v.wishedSuit));
@@ -559,8 +591,9 @@ class TableView {
         <thead><tr><th></th><th>${STRINGS.pointsThisRound}</th>${scoring ? `<th>${STRINGS.pointsTotal}</th>` : ''}</tr></thead>
         <tbody></tbody>
       </table>
+      ${this.conn.canControlRounds ? '' : `<p class="round-over__wait">${STRINGS.waitingForHostNext}</p>`}
       <div class="dialog__buttons">
-        <button type="button" class="btn btn--primary" data-next>${matchOver ? STRINGS.newMatch : STRINGS.nextRound}</button>
+        ${this.conn.canControlRounds ? `<button type="button" class="btn btn--primary" data-next>${matchOver ? STRINGS.newMatch : STRINGS.nextRound}</button>` : ''}
         <button type="button" class="btn" data-leave>${STRINGS.backToMenu}</button>
       </div>`;
     dialog.querySelector('.round-over__headline')!.textContent = headline;
@@ -580,7 +613,7 @@ class TableView {
       body.appendChild(row);
     });
 
-    dialog.querySelector('[data-next]')!.addEventListener('click', () => {
+    dialog.querySelector('[data-next]')?.addEventListener('click', () => {
       this.closeRoundDialog();
       if (matchOver) this.conn.newMatch();
       else this.conn.nextRound();
@@ -599,6 +632,23 @@ class TableView {
     if (this.el.roundDialog.open) this.el.roundDialog.close();
   }
 
+  /* ---------------------------- Connection notices ---------------------------- */
+
+  /**
+   * Shows a banner while reconnecting, or a dialog when the host left.
+   * @param notice - current connection notice
+   * @returns nothing
+   */
+  private onNotice = (notice: ConnectionNotice): void => {
+    this.el.notice.hidden = notice !== 'reconnecting';
+    this.el.notice.textContent = notice === 'reconnecting' ? STRINGS.reconnecting : '';
+    if (notice === 'hostLeft') {
+      this.closeRoundDialog();
+      if (this.el.suitDialog.open) this.el.suitDialog.close();
+      if (!this.el.hostLeftDialog.open) this.el.hostLeftDialog.showModal();
+    }
+  };
+
   /* ---------------------------- Teardown ---------------------------- */
 
   /**
@@ -613,7 +663,9 @@ class TableView {
    */
   private leave(): void {
     this.closeRoundDialog();
+    if (this.el.hostLeftDialog.open) this.el.hostLeftDialog.close();
     this.unsubscribe();
+    this.unsubscribeNotice();
     this.conn.close();
     this.root.removeEventListener('click', this.onClick);
     window.removeEventListener('resize', this.onResize);

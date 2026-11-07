@@ -1,6 +1,7 @@
 /* ==========================================================================
    Setup screen
-   Name, number of bots, bot strength, and the rules settings.
+   Name, rules (shared by both modes), then either a game against bots
+   or creating a multiplayer room.
    ========================================================================== */
 
 import type { Difficulty } from '../bot/bot';
@@ -12,6 +13,13 @@ export interface SetupChoice {
   botCount: number;
   difficulty: Difficulty;
   rules: Rules;
+}
+
+export interface SetupHandlers {
+  /** "Start game" against bots. */
+  onStart(choice: SetupChoice): void;
+  /** "Create game" for friends. */
+  onCreateRoom(name: string, rules: Rules): void;
 }
 
 /** Boolean rules shown as checkboxes. `requires` greys a toggle out when its parent rule is off. */
@@ -34,14 +42,20 @@ const NUMBERS: { key: keyof Rules; label: string; options: number[]; requires?: 
   { key: 'roundsPerMatch', label: STRINGS.ruleRoundsPerMatch, options: [1, 3, 5, 7, 10], requires: 'scoring' },
 ];
 
+const DIFFICULTIES: [Difficulty, string][] = [
+  ['easy', STRINGS.difficultyEasy],
+  ['normal', STRINGS.difficultyNormal],
+  ['hard', STRINGS.difficultyHard],
+];
+
 /**
  * Renders the setup screen into `root`.
  * @param root - container element (its content is replaced)
  * @param initialName - prefilled player name
- * @param onStart - called with the player's choices when they press Start
+ * @param handlers - what to do for each mode
  * @returns nothing
  */
-export function renderSetupScreen(root: HTMLElement, initialName: string, onStart: (choice: SetupChoice) => void): void {
+export function renderSetupScreen(root: HTMLElement, initialName: string, handlers: SetupHandlers): void {
   root.innerHTML = '';
   const screen = document.createElement('main');
   screen.className = 'setup';
@@ -59,37 +73,36 @@ export function renderSetupScreen(root: HTMLElement, initialName: string, onStar
         <input name="name" maxlength="20" autocomplete="nickname" required />
       </label>
 
-      <!-- Number of bots -->
-      <fieldset class="field">
-        <legend>${STRINGS.botCount}</legend>
-        <div class="segmented">
-          ${[1, 2, 3].map((n) => `<label><input type="radio" name="bots" value="${n}" ${n === 2 ? 'checked' : ''}/><span>${n}</span></label>`).join('')}
-        </div>
-      </fieldset>
-
-      <!-- Bot strength -->
-      <fieldset class="field">
-        <legend>${STRINGS.difficulty}</legend>
-        <div class="segmented">
-          ${(
-            [
-              ['easy', STRINGS.difficultyEasy],
-              ['normal', STRINGS.difficultyNormal],
-              ['hard', STRINGS.difficultyHard],
-            ] as const
-          )
-            .map(([v, label]) => `<label><input type="radio" name="difficulty" value="${v}" ${v === 'normal' ? 'checked' : ''}/><span>${label}</span></label>`)
-            .join('')}
-        </div>
-      </fieldset>
-
-      <!-- Rules (collapsed by default) -->
+      <!-- Rules (collapsed by default, used by both modes) -->
       <details class="rules">
         <summary>${STRINGS.rulesHeading}</summary>
         <div class="rules__list"></div>
       </details>
 
-      <button type="submit" class="btn btn--primary btn--big">${STRINGS.startGame}</button>
+      <!-- Mode 1: against bots -->
+      <section class="mode">
+        <h2>${STRINGS.vsComputerHeading}</h2>
+        <fieldset class="field">
+          <legend>${STRINGS.botCount}</legend>
+          <div class="segmented">
+            ${[1, 2, 3].map((n) => `<label><input type="radio" name="bots" value="${n}" ${n === 2 ? 'checked' : ''}/><span>${n}</span></label>`).join('')}
+          </div>
+        </fieldset>
+        <fieldset class="field">
+          <legend>${STRINGS.difficulty}</legend>
+          <div class="segmented">
+            ${DIFFICULTIES.map(([v, label]) => `<label><input type="radio" name="difficulty" value="${v}" ${v === 'normal' ? 'checked' : ''}/><span>${label}</span></label>`).join('')}
+          </div>
+        </fieldset>
+        <button type="submit" class="btn btn--primary btn--big">${STRINGS.startGame}</button>
+      </section>
+
+      <!-- Mode 2: with friends over a shared link -->
+      <section class="mode">
+        <h2>${STRINGS.friendsHeading}</h2>
+        <p class="mode__hint">${STRINGS.friendsHint}</p>
+        <button type="button" class="btn btn--big" data-create>${STRINGS.createGame}</button>
+      </section>
     </form>`;
   root.appendChild(screen);
 
@@ -131,17 +144,31 @@ export function renderSetupScreen(root: HTMLElement, initialName: string, onStar
   form.addEventListener('change', syncDependencies);
   syncDependencies();
 
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const data = new FormData(form);
+  /**
+   * Reads the rules from the form.
+   * @returns the chosen rules
+   */
+  const readRules = (): Rules => {
     const rules: Rules = { ...DEFAULT_RULES };
     for (const t of TOGGLES) (rules[t.key] as boolean) = (form.elements.namedItem(t.key) as HTMLInputElement).checked;
     for (const n of NUMBERS) (rules[n.key] as number) = Number((form.elements.namedItem(n.key) as HTMLSelectElement).value);
-    onStart({
-      name: nameInput.value.trim() || STRINGS.defaultName,
+    return rules;
+  };
+  const readName = () => nameInput.value.trim() || STRINGS.defaultName;
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    handlers.onStart({
+      name: readName(),
       botCount: Number(data.get('bots')),
       difficulty: data.get('difficulty') as Difficulty,
-      rules,
+      rules: readRules(),
     });
+  });
+
+  form.querySelector('[data-create]')!.addEventListener('click', () => {
+    if (!nameInput.reportValidity()) return;
+    handlers.onCreateRoom(readName(), readRules());
   });
 }

@@ -1,21 +1,34 @@
 /* ==========================================================================
    Table connection
    The table UI only talks to this interface. Locally it wraps a
-   GameController; in step 3 a network version will implement the same
-   interface for guests, so the UI does not need to know the difference.
+   GameController; in multiplayer the host and guests each provide their
+   own implementation, so the UI does not need to know the difference.
    ========================================================================== */
 
 import { getVisibleState, redactEvents, type GameEvent, type Move, type Rules, type VisibleState } from '../engine';
 import type { GameController } from './controller';
 
+/** Extra table information that is not part of the game state itself. */
+export interface TableMeta {
+  /** connected[seat]: false while a human player is offline. Bots are always connected. */
+  connected: boolean[];
+}
+
 /** Receives the viewer's state, the (redacted) events that led to it, and whether cards were just dealt. */
-export type ViewListener = (view: VisibleState, events: GameEvent[], isNewDeal: boolean) => void;
+export type ViewListener = (view: VisibleState, events: GameEvent[], isNewDeal: boolean, meta: TableMeta) => void;
+
+/** Network problems the table should tell the player about (null = all good). */
+export type ConnectionNotice = 'reconnecting' | 'hostLeft' | null;
 
 export interface TableConnection {
   readonly playerId: string;
   readonly rules: Rules;
+  /** Only the host (or a local game) may deal the next round / start a new match. */
+  readonly canControlRounds: boolean;
   /** Starts updates; the listener immediately gets the current view. Returns an unsubscribe function. */
   subscribe(listener: ViewListener): () => void;
+  /** Optional: connection notices (multiplayer guests only). Returns an unsubscribe function. */
+  subscribeNotice?(listener: (notice: ConnectionNotice) => void): () => void;
   /** Sends a move. The UI only offers legal moves, so errors are ignored here. */
   submit(move: Move): void;
   nextRound(): void;
@@ -34,10 +47,12 @@ export function localConnection(controller: GameController, playerId: string): T
   return {
     playerId,
     rules: controller.rules,
+    canControlRounds: true,
     subscribe(listener) {
       return controller.subscribe((state, events, isNewDeal) => {
         const view = getVisibleState(state, playerId);
-        listener(view, redactEvents(events, view.you), isNewDeal);
+        const meta = { connected: state.players.map(() => true) };
+        listener(view, redactEvents(events, view.you), isNewDeal, meta);
       });
     },
     submit(move) {

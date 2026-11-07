@@ -232,6 +232,123 @@ select {
   opacity: 0.45;
 }
 
+/* ---------------------------- Setup: mode cards ---------------------------- */
+.mode {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  background: var(--panel);
+}
+
+.mode h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.mode__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Secondary full-width buttons (Leave, Back to menu) stay low-key. */
+.btn--quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+/* ---------------------------- Lobby ---------------------------- */
+.lobby {
+  display: grid;
+  gap: 1rem;
+}
+
+.lobby .setup__header h1 {
+  font-size: 2rem;
+}
+
+.share {
+  display: flex;
+  gap: 8px;
+}
+
+.share__input {
+  flex: 1;
+  min-width: 0; /* lets the input shrink inside flex on narrow phones */
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.seats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.seats__item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.seats__name {
+  font-weight: 600;
+  margin-right: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 55%;
+}
+
+.badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--panel-border);
+  color: var(--text);
+}
+
+.add-bot {
+  display: flex;
+  gap: 8px;
+}
+
+.add-bot select {
+  flex: 1;
+}
+
+.lobby__hint {
+  margin: 0;
+  min-height: 1.4em;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* ---------------------------- Message screen ---------------------------- */
+.message {
+  display: grid;
+  gap: 1rem;
+}
+
+.message__text {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
 /* ---------------------------- Cards ---------------------------- */
 /* Kenney cards are 64×64 PNGs with the card body (42×60) centred.
    background-size 152.381% = 64/42, which crops the transparent side margins;
@@ -271,7 +388,12 @@ select {
   height: 100vh;
   height: 100dvh; /* dvh excludes mobile browser bars where supported */
   display: grid;
+  /* topbar, opponents, center (fills), status, log, actions, hand.
+     The fixed-position .notice banner takes no row. */
   grid-template-rows: auto auto 1fr auto auto auto auto;
+  /* minmax(0, 1fr): without it the column grows to fit a big hand and the
+     table becomes wider than the screen. */
+  grid-template-columns: minmax(0, 1fr);
   background: radial-gradient(ellipse at center, var(--felt) 55%, var(--felt-edge) 100%);
   color: var(--on-felt);
   overflow: hidden;
@@ -297,6 +419,27 @@ select {
   color: var(--on-felt-muted);
 }
 
+/* ---------------------------- Connection banner ---------------------------- */
+.notice {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40; /* below flying cards (50) so animations pass over it */
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  max-width: calc(100% - 32px);
+  text-align: center;
+}
+
+.notice[hidden] {
+  display: none;
+}
+
 /* ---------------------------- Opponents ---------------------------- */
 .opponents {
   display: flex;
@@ -315,6 +458,10 @@ select {
   border: 2px solid transparent;
   min-width: 84px;
   transition: border-color 0.2s, background-color 0.2s;
+}
+
+.seat--offline {
+  opacity: 0.5;
 }
 
 .seat--active {
@@ -673,6 +820,11 @@ select {
 .suit-btn--hearts span,
 .suit-btn--diamonds span {
   color: var(--red-suit);
+}
+
+.round-over__wait {
+  margin: 0 0 12px;
+  color: var(--muted);
 }
 
 .round-over__headline {

@@ -81,7 +81,6 @@ export class GameController {
     if (this.disposed) return 'round_over';
     const result = applyMove(this.state, move, this.rules);
     if (!result.ok) return result.error;
-    if (import.meta.env.DEV) console.debug('[mau-mau] move', move, result.events); // dev-only, removed at step 3
     this.state = result.state;
     this.emit(result.events, false);
     this.scheduleBot();

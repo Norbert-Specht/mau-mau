@@ -38,7 +38,11 @@ export const STRINGS = {
   appTitle: 'Mau-Mau',
 
   /* ---- Setup screen ---- */
-  setupSubtitle: 'Play against the computer',
+  setupSubtitle: 'The German card game — against the computer or with friends',
+  vsComputerHeading: 'Play against the computer',
+  friendsHeading: 'Play with friends',
+  friendsHint: 'Create a room and share the link. No accounts needed — you can add bots too.',
+  createGame: 'Create game',
   yourName: 'Your name',
   defaultName: 'Player',
   botCount: 'Opponents',
@@ -99,6 +103,44 @@ export const STRINGS = {
   nextRound: 'Next round',
   newMatch: 'New match',
   backToMenu: 'Back to menu',
+  waitingForHostNext: 'Waiting for the host to continue…',
+
+  /* ---- Multiplayer: lobby ---- */
+  creatingRoom: 'Creating room…',
+  roomError: 'Couldn’t reach the connection server. Check your internet connection and try again.',
+  lobbyTitle: 'Game room',
+  shareLink: 'Invite friends with this link',
+  copyLink: 'Copy link',
+  copied: 'Copied!',
+  players: 'Players',
+  hostBadge: 'Host',
+  youBadge: 'You',
+  botBadge: (difficulty: string) => `Bot · ${difficulty}`,
+  offlineBadge: 'offline',
+  addBot: 'Add bot',
+  removeBot: 'Remove',
+  needMorePlayers: 'Waiting for at least one more player…',
+  waitingForHost: 'Waiting for the host to start the game…',
+  leaveRoom: 'Leave',
+  closeRoomConfirm: 'Close this room? Everyone will be disconnected.',
+
+  /* ---- Multiplayer: joining ---- */
+  joinTitle: 'Join game',
+  joinHint: 'You’ve been invited to a game of Mau-Mau.',
+  join: 'Join',
+  connecting: 'Connecting…',
+  rejectedFull: 'This game is full (4 players).',
+  rejectedStarted: 'This game has already started.',
+  rejectedSelf: 'This is your own game. Open the link on another device or in another browser.',
+  notFound: 'This game doesn’t exist any more. Ask for a new link.',
+  connectError: 'Couldn’t connect. Check your internet connection and try again.',
+  tryAgain: 'Try again',
+
+  /* ---- Multiplayer: at the table ---- */
+  hostLeftTitle: 'Game over',
+  hostLeft: 'The host closed the game.',
+  reconnecting: 'Connection lost – reconnecting…',
+  waitingFor: (name: string) => `Waiting for ${name} to reconnect…`,
 };
 
 /* ---------------------------- Card names ---------------------------- */
