@@ -73,10 +73,6 @@ describe('move validation', () => {
     expect(applyMove(over, { type: 'draw', player: 'p0' }, rules)).toEqual({ ok: false, error: 'round_over' });
   });
 
-  it('rejects passing without having drawn', () => {
-    expect(applyMove(s, { type: 'pass', player: 'p0' }, rules)).toEqual({ ok: false, error: 'cannot_pass' });
-  });
-
   it('counts successful moves only', () => {
     expect(ok(applyMove(s, { type: 'play', player: 'p0', cardId: '9-hearts' }, rules)).state.moveCount).toBe(1);
   });
@@ -251,34 +247,53 @@ describe('drawing', () => {
     ]);
   });
 
-  it('lets the player play the drawn card if it fits', () => {
+  it('plays the drawn card automatically if it fits', () => {
     const s = makeState({ hands: ['KC QC', 'AS'], discard: '10H', draw: '9S 9H' });
-    const drawn = ok(applyMove(s, { type: 'draw', player: 'p0' }, rules)).state;
-    expect(drawn.phase).toBe('drawn');
-    expect(drawn.drawnCardId).toBe('9-hearts');
-    expect(drawn.current).toBe(0);
-    // Cannot draw again in the same turn.
-    expect(applyMove(drawn, { type: 'draw', player: 'p0' }, rules)).toEqual({ ok: false, error: 'already_drew' });
-    const r = ok(applyMove(drawn, { type: 'play', player: 'p0', cardId: '9-hearts' }, rules));
+    const r = ok(applyMove(s, { type: 'draw', player: 'p0' }, rules));
+    expect(ids(r.state.hands[0])).toEqual(['K-clubs', 'Q-clubs']);
+    expect(r.state.discardPile.at(-1)).toEqual(c('9H'));
     expect(r.state.current).toBe(1);
     expect(r.state.phase).toBe('playing');
+    expect(r.events).toEqual([
+      { type: 'drew', seat: 0, count: 1, reason: 'normal', cards: [c('9H')] },
+      { type: 'played', seat: 0, card: c('9H') },
+      { type: 'turn', seat: 1 },
+    ]);
   });
 
-  it('only the drawn card may be played after drawing', () => {
-    const s = makeState({ hands: ['KH QC', 'AS'], discard: '10H', draw: '9S 9H' });
+  it("applies the auto-played card's effect (7 and 8)", () => {
+    const seven = makeState({ hands: ['KC QC', 'AS'], discard: '10H', draw: '9S 7H' });
+    expect(ok(applyMove(seven, { type: 'draw', player: 'p0' }, rules)).state.pendingDraw).toBe(2);
+    const eight = makeState({ hands: ['KC QC', 'AS', 'QD'], discard: '10H', draw: '9S 8H' });
+    expect(ok(applyMove(eight, { type: 'draw', player: 'p0' }, rules)).state.current).toBe(2);
+  });
+
+  it('waits for a suit when the drawn card is a wild Jack', () => {
+    const s = makeState({ hands: ['KH QC', 'AS'], discard: '10H', draw: '9S JC' });
     const drawn = ok(applyMove(s, { type: 'draw', player: 'p0' }, rules)).state;
+    expect(drawn.phase).toBe('drawn');
+    expect(drawn.drawnCardId).toBe('J-clubs');
+    expect(drawn.current).toBe(0);
+    // Cannot draw again, cannot play another card, and the Jack needs a wish.
+    expect(applyMove(drawn, { type: 'draw', player: 'p0' }, rules)).toEqual({ ok: false, error: 'already_drew' });
     expect(applyMove(drawn, { type: 'play', player: 'p0', cardId: 'K-hearts' }, rules)).toEqual({
       ok: false,
       error: 'only_drawn_card',
     });
+    expect(applyMove(drawn, { type: 'play', player: 'p0', cardId: 'J-clubs' }, rules)).toEqual({
+      ok: false,
+      error: 'wish_required',
+    });
+    const r = ok(applyMove(drawn, { type: 'play', player: 'p0', cardId: 'J-clubs', wish: 'spades' }, rules));
+    expect(r.state.wishedSuit).toBe('spades');
+    expect(r.state.current).toBe(1);
   });
 
-  it('lets the player pass instead of playing the drawn card', () => {
-    const s = makeState({ hands: ['KC QC', 'AS'], discard: '10H', draw: '9S 9H' });
-    const drawn = ok(applyMove(s, { type: 'draw', player: 'p0' }, rules)).state;
-    const r = ok(applyMove(drawn, { type: 'pass', player: 'p0' }, rules));
-    expect(r.state.current).toBe(1);
+  it('keeps a drawn Jack that may not be played (Jack on Jack off)', () => {
+    const s = makeState({ hands: ['KH QC', 'AS'], discard: 'JD', wishedSuit: 'spades', draw: '9S JC' });
+    const r = ok(applyMove(s, { type: 'draw', player: 'p0' }, rules));
     expect(r.state.hands[0]).toHaveLength(3);
+    expect(r.state.current).toBe(1);
   });
 
   it('ends the turn immediately when playDrawnCard is off', () => {
@@ -371,11 +386,18 @@ describe('Mau call (optional rule, off by default)', () => {
     expect(r.state.hands[0]).toHaveLength(2);
   });
 
-  it('applies after playing the card just drawn', () => {
-    const t = makeState({ hands: ['KC', 'AS'], discard: '10H', draw: '9H' });
-    const drawn = ok(applyMove(t, { type: 'draw', player: 'p0' }, mauRules)).state;
-    const r = ok(applyMove(drawn, { type: 'play', player: 'p0', cardId: '9-hearts' }, mauRules));
+  it('applies when a drawn card is auto-played down to one card', () => {
+    const t = makeState({ hands: ['KC', 'AS'], discard: '10H', draw: '8C 9H' });
+    const r = ok(applyMove(t, { type: 'draw', player: 'p0' }, mauRules));
     expect(r.state.hands[0]).toHaveLength(2);
+    expect(r.events.some((e) => e.type === 'drew' && e.reason === 'mau')).toBe(true);
+  });
+
+  it('no penalty for an auto-played card if Mau was called before drawing', () => {
+    const t = makeState({ hands: ['KC', 'AS'], discard: '10H', draw: '8C 9H' });
+    const called = ok(applyMove(t, { type: 'mau', player: 'p0' }, mauRules)).state;
+    const r = ok(applyMove(called, { type: 'draw', player: 'p0' }, mauRules));
+    expect(r.state.hands[0]).toHaveLength(1);
   });
 
   it('uses the configured penalty size, and can be turned off', () => {

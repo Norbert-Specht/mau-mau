@@ -16,7 +16,8 @@ export interface Player {
 
 /**
  * - playing:   current player may play, draw, or call Mau
- * - drawn:     current player drew a playable card and may play it or pass
+ * - drawn:     current player drew a wild Jack, which is played automatically
+ *              once they name a suit (the only allowed move is playing it)
  * - roundOver: someone emptied their hand; waiting for the next round
  * - matchOver: scored match finished
  */
@@ -39,7 +40,7 @@ export interface GameState {
   /** Suit wished for by the last Jack, or null. */
   wishedSuit: Suit | null;
   phase: Phase;
-  /** Id of the card just drawn in phase "drawn", otherwise null. */
+  /** Id of the drawn wild Jack waiting for a suit (phase "drawn"), otherwise null. */
   drawnCardId: string | null;
   /** Whether the current player has called "Mau" this turn. */
   mauCalled: boolean;
@@ -67,8 +68,6 @@ export type Move =
   | { type: 'play'; player: PlayerId; cardId: string; wish?: Suit; mau?: boolean }
   /** Draw: takes the pending 7-penalty if any, otherwise one card. */
   | { type: 'draw'; player: PlayerId }
-  /** End the turn after drawing a playable card without playing it. */
-  | { type: 'pass'; player: PlayerId }
   /** Call "Mau" (the UI's Mau! button). */
   | { type: 'mau'; player: PlayerId };
 
@@ -100,8 +99,7 @@ export type MoveError =
   | 'card_not_playable'
   | 'wish_required'
   | 'invalid_wish'
-  | 'already_drew'
-  | 'cannot_pass';
+  | 'already_drew';
 
 export type MoveResult =
   | { ok: true; state: GameState; events: GameEvent[] }

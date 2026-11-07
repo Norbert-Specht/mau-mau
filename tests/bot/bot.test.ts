@@ -61,6 +61,16 @@ describe('all bots', () => {
     }
   });
 
+  it('say Mau before drawing on their last card (drawn card may auto-play)', () => {
+    const mauRules = makeRules({ mauRequired: true });
+    const s = makeState({ hands: ['KC', 'AS QS'], discard: '10H' });
+    for (const d of ['easy', 'normal', 'hard'] as const) {
+      expect(chooseMove(getVisibleState(s, 'p0'), mauRules, d, seeded(1))).toEqual({ type: 'mau', player: 'p0' });
+      const called = ok(applyMove(s, { type: 'mau', player: 'p0' }, mauRules)).state;
+      expect(chooseMove(getVisibleState(called, 'p0'), mauRules, d, seeded(1))).toEqual({ type: 'draw', player: 'p0' });
+    }
+  });
+
   it('stack a 7 when facing a 7-penalty', () => {
     const s = makeState({ hands: ['7S KC QC', 'AS'], discard: '7H', pendingDraw: 2 });
     expect(botMove(s)).toMatchObject({ type: 'play', cardId: '7-spades' });
@@ -104,10 +114,12 @@ describe('normal bot', () => {
     expect(botMove(s)).toMatchObject({ cardId: 'A-hearts' });
   });
 
-  it('plays a playable drawn card', () => {
-    const s = makeState({ hands: ['KS QS 8D 9D', 'AS AD AC AH'], discard: '10H', draw: '9C 9H' });
+  it('plays a drawn Jack and names a suit', () => {
+    const s = makeState({ hands: ['KS QS 8D 9D', 'AS AD AC AH'], discard: '10H', draw: '9C JH' });
     const drawn = ok(applyMove(s, { type: 'draw', player: 'p0' }, rules)).state;
-    expect(botMove(drawn)).toMatchObject({ type: 'play', cardId: '9-hearts' });
+    for (const d of ['easy', 'normal', 'hard'] as const) {
+      expect(botMove(drawn, d)).toMatchObject({ type: 'play', cardId: 'J-hearts', wish: expect.any(String) });
+    }
   });
 });
 

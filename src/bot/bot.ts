@@ -14,7 +14,6 @@
    ========================================================================== */
 
 import {
-  canPass,
   cardPoints,
   createDeck,
   getPlayableCards,
@@ -60,7 +59,16 @@ export function chooseMove(
       ? pickRandom(playable, random)
       : pickSmart(view, rules, playable, difficulty === 'hard' ? unseenCards(view) : null);
 
-  if (!card) return canPass(view) ? { type: 'pass', player } : { type: 'draw', player };
+  // No card to play means drawing. (In phase "drawn" the drawn Bube is always playable.)
+  if (!card) {
+    // With one card left, a drawn card that fits is auto-played and leaves the
+    // bot on one card again — so say "Mau" before drawing. (A 7-penalty draw
+    // never auto-plays, so it needs no call.)
+    if (rules.mauRequired && view.hand.length === 1 && view.pendingDraw === 0 && !view.mauCalled) {
+      return { type: 'mau', player };
+    }
+    return { type: 'draw', player };
+  }
 
   const move: Move = { type: 'play', player, cardId: card.id };
   if (isWildJack(card, rules)) {
@@ -92,7 +100,7 @@ function pickRandom<T>(items: T[], random: RandomFn): T | null {
  * @param rules - active rules
  * @param playable - legal cards
  * @param unseen - (hard only) cards not yet seen by the bot, else null
- * @returns the card to play, or null to draw/pass
+ * @returns the card to play, or null to draw
  */
 function pickSmart(view: VisibleState, rules: Rules, playable: Card[], unseen: Card[] | null): Card | null {
   if (playable.length === 0) return null;

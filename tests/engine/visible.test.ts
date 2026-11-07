@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest';
 import {
   applyMove,
   canDraw,
-  canPass,
   createGame,
   getPlayableCards,
   getVisibleState,
@@ -42,9 +41,9 @@ describe('getVisibleState', () => {
   });
 
   it('hides which card another player just drew', () => {
-    const t = makeState({ hands: ['KC QC', 'AS'], discard: '10H', draw: '9H' });
+    const t = makeState({ hands: ['KC QC', 'AS'], discard: '10H', draw: 'JH' });
     const drawn = ok(applyMove(t, { type: 'draw', player: 'p0' }, rules)).state;
-    expect(getVisibleState(drawn, 'p0').drawnCardId).toBe('9-hearts');
+    expect(getVisibleState(drawn, 'p0').drawnCardId).toBe('J-hearts');
     expect(getVisibleState(drawn, 'p1').drawnCardId).toBeNull();
   });
 
@@ -74,15 +73,13 @@ describe('legal-move helpers', () => {
     expect(ids(getPlayableCards(getVisibleState(s, 'p0'), rules))).toEqual(['9-hearts', '10-spades', 'J-clubs']);
     expect(getPlayableCards(getVisibleState(s, 'p1'), rules)).toEqual([]);
     expect(canDraw(getVisibleState(s, 'p0'))).toBe(true);
-    expect(canPass(getVisibleState(s, 'p0'))).toBe(false);
   });
 
-  it('only lists the drawn card after drawing', () => {
-    const s = makeState({ hands: ['KH QC', 'AS'], discard: '10H', draw: '9H' });
+  it('only lists the drawn Jack while it waits for a suit', () => {
+    const s = makeState({ hands: ['KH QC', 'AS'], discard: '10H', draw: 'JD' });
     const v = getVisibleState(ok(applyMove(s, { type: 'draw', player: 'p0' }, rules)).state, 'p0');
-    expect(ids(getPlayableCards(v, rules))).toEqual(['9-hearts']);
+    expect(ids(getPlayableCards(v, rules))).toEqual(['J-diamonds']);
     expect(canDraw(v)).toBe(false);
-    expect(canPass(v)).toBe(true);
   });
 });
 
@@ -101,7 +98,7 @@ function randomMove(s: GameState, rules: Rules, seed: number): { move: Move; see
   const playable = getPlayableCards(view, rules);
   const [r, next] = nextRandom(seed);
   if (playable.length === 0) {
-    return { move: canPass(view) ? { type: 'pass', player } : { type: 'draw', player }, seed: next };
+    return { move: { type: 'draw', player }, seed: next };
   }
   const card = playable[Math.floor(r * playable.length)];
   // Call Mau most of the time, so the penalty path also gets exercised.

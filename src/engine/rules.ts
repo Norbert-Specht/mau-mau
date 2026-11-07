@@ -17,7 +17,7 @@ export interface Rules {
   jackWild: boolean;
   /** Allows a Jack to be played on a Jack (only matters when jackWild is on). */
   jackOnJack: boolean;
-  /** After drawing one card, the player may play it immediately if it fits. */
+  /** After drawing one card, it is played automatically if it fits (a Jack still asks for a suit). */
   playDrawnCard: boolean;
   /** Players must call "Mau" when going down to one card. */
   mauRequired: boolean;

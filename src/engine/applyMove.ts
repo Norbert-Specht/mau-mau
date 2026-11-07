@@ -39,9 +39,6 @@ export function applyMove(state: GameState, move: Move, rules: Rules): MoveResul
     case 'draw':
       error = drawTurn(s, seat, rules, events);
       break;
-    case 'pass':
-      error = passTurn(s, seat, events);
-      break;
     default:
       error = 'unknown_move';
   }
@@ -137,7 +134,10 @@ function playCard(
 
 /**
  * Handles a draw: either takes the whole pending 7-penalty (ending the turn),
- * or draws one card which may be played immediately if the rules allow.
+ * or draws one card. With playDrawnCard on, a drawn card that fits is played
+ * automatically — there is no choice to keep it.
+ * A drawn wild Jack still needs a suit, so the turn pauses in phase "drawn"
+ * until the player sends the play move with their wish.
  * @param s - cloned state
  * @param seat - acting seat
  * @param rules - active rules
@@ -157,27 +157,16 @@ function drawTurn(s: GameState, seat: number, rules: Rules, events: GameEvent[])
 
   const [drawn] = drawCards(s, seat, 1, 'normal', events);
   if (drawn && rules.playDrawnCard && canPlayCard(drawn, playContext(s), rules)) {
-    // Let the player decide: play this card or pass.
-    s.phase = 'drawn';
-    s.drawnCardId = drawn.id;
-    return null;
+    if (isWildJack(drawn, rules)) {
+      // Must be played, but only the player can name the suit.
+      s.phase = 'drawn';
+      s.drawnCardId = drawn.id;
+      return null;
+    }
+    return playCard(s, seat, { type: 'play', player: s.players[seat].id, cardId: drawn.id }, rules, events);
   }
 
   // Nothing playable (or the deck is completely empty): the turn ends.
-  events.push({ type: 'passed', seat });
-  advanceTurn(s, 1, events);
-  return null;
-}
-
-/**
- * Ends the turn without playing the card just drawn.
- * @param s - cloned state
- * @param seat - acting seat
- * @param events - event list to append to
- * @returns 'cannot_pass' unless the player just drew a playable card
- */
-function passTurn(s: GameState, seat: number, events: GameEvent[]): MoveError | null {
-  if (s.phase !== 'drawn') return 'cannot_pass';
   events.push({ type: 'passed', seat });
   advanceTurn(s, 1, events);
   return null;

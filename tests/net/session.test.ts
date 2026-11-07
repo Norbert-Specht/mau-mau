@@ -10,7 +10,9 @@ import { HostSession } from '../../src/net/host';
 import { isGuestMessage } from '../../src/net/protocol';
 import { FakeNetwork } from './fakeTransport';
 
-const rules = makeRules();
+// Drawn cards never auto-play here, so a draw always ends the turn and the
+// tests can step through turns predictably. (Auto-play is tested in the engine.)
+const rules = makeRules({ playDrawnCard: false });
 
 /** Lets queued promises (async connect) run. */
 const flush = () => vi.advanceTimersByTimeAsync(0);
@@ -181,10 +183,9 @@ describe('host and guest sessions', () => {
     expect(table.view().current).toBe(0);
     expect(table.view().players[0].cardCount).toBe(5);
 
-    // Host draws; then it's the guest's turn (unless the host drew a playable card).
+    // Host draws; then it's the guest's turn.
     const hostConn = host.hostConnection();
     hostConn.submit({ type: 'draw', player: 'seat-0' });
-    if (table.view().current === 0) hostConn.submit({ type: 'pass', player: 'seat-0' });
     expect(table.view().current).toBe(1);
 
     const before = table.view().hand.length;
@@ -208,12 +209,10 @@ describe('host and guest sessions', () => {
     host.addBot('normal');
     host.start();
     const table = watchTable(a.guest);
-    // Host draws and passes → guest draws/passes → bot's turn after 700 ms.
+    // Host draws → guest draws → bot's turn after 700 ms.
     const hostConn = host.hostConnection();
     hostConn.submit({ type: 'draw', player: 'seat-0' });
-    if (table.view().current === 0) hostConn.submit({ type: 'pass', player: 'seat-0' });
     table.conn.submit({ type: 'draw', player: 'seat-1' });
-    if (table.view().current === 1) table.conn.submit({ type: 'pass', player: 'seat-1' });
     expect(table.view().current).toBe(2);
     await vi.advanceTimersByTimeAsync(800);
     expect(table.view().current).not.toBe(2);
@@ -296,7 +295,7 @@ describe('host and guest sessions', () => {
       if (playable.length) {
         conn.submit({ type: 'play', player, cardId: playable[0].id, wish: 'hearts', mau: v.hand.length === 2 });
       } else {
-        conn.submit(v.phase === 'drawn' ? { type: 'pass', player } : { type: 'draw', player });
+        conn.submit({ type: 'draw', player });
       }
     }
     expect(table.view().phase).toBe('roundOver');

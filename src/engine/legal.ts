@@ -62,7 +62,7 @@ export function getPlayableCards(view: VisibleState, rules: Rules): Card[] {
     wishedSuit: view.wishedSuit,
     pendingDraw: view.pendingDraw,
   };
-  // After drawing, only the freshly drawn card may be played.
+  // After drawing a wild Jack, only that Jack may be played.
   const candidates =
     view.phase === 'drawn' ? view.hand.filter((c) => c.id === view.drawnCardId) : view.hand;
   return candidates.filter((c) => canPlayCard(c, ctx, rules));
@@ -77,11 +77,3 @@ export function canDraw(view: VisibleState): boolean {
   return view.current === view.you && view.phase === 'playing';
 }
 
-/**
- * Can the viewer pass right now? Only after drawing a playable card.
- * @param view - the viewer's visible state
- * @returns true if a pass move would be accepted
- */
-export function canPass(view: VisibleState): boolean {
-  return view.current === view.you && view.phase === 'drawn';
-}

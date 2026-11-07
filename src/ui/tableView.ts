@@ -7,7 +7,6 @@
 
 import {
   canDraw,
-  canPass,
   getPlayableCards,
   isWildJack,
   SUITS,
@@ -25,6 +24,8 @@ import { createCardEl } from './cardView';
 const MAX_SEAT_CARDS = 7;
 /** Pause before the round-over dialog so the winning card can land first. */
 const ROUND_DIALOG_DELAY_MS = 900;
+/** Let a drawn Bube fly into the hand before the suit picker opens. */
+const DRAWN_JACK_DELAY_MS = 450;
 /** Stagger between cards in multi-card animations (deal, draw 4, …). */
 const STAGGER_MS = 80;
 
@@ -49,6 +50,8 @@ export function mountTable(root: HTMLElement, conn: TableConnection, onLeave: ()
 class TableView {
   private view: VisibleState | null = null;
   private meta: TableMeta = { connected: [] };
+  /** True while the suit picker for a drawn Bube is open (avoids opening it twice). */
+  private drawnJackPending = false;
   private roundDialogTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly unsubscribe: () => void;
   private readonly unsubscribeNotice: () => void;
@@ -65,7 +68,6 @@ class TableView {
     status: HTMLElement;
     mau: HTMLButtonElement;
     drawBtn: HTMLButtonElement;
-    pass: HTMLButtonElement;
     handArea: HTMLElement;
     hand: HTMLElement;
     suitDialog: HTMLDialogElement;
@@ -120,7 +122,6 @@ class TableView {
         <section class="actions">
           <button type="button" class="btn btn--mau" data-action="mau">${STRINGS.mauButton}</button>
           <button type="button" class="btn" data-action="draw"></button>
-          <button type="button" class="btn" data-action="pass">${STRINGS.pass}</button>
         </section>
 
         <!-- Your hand -->
@@ -162,7 +163,6 @@ class TableView {
       status: q('.status'),
       mau: q('.actions [data-action="mau"]'),
       drawBtn: q('.actions [data-action="draw"]'),
-      pass: q('.actions [data-action="pass"]'),
       handArea: q('.hand-area'),
       hand: q('.hand'),
       suitDialog: q('.suit-picker'),
@@ -200,6 +200,7 @@ class TableView {
 
     this.render();
     this.animate(before, events, isNewDeal);
+    void this.playDrawnJack();
 
     if ((view.phase === 'roundOver' || view.phase === 'matchOver') && !this.roundDialogTimer) {
       this.roundDialogTimer = setTimeout(() => this.showRoundDialog(), ROUND_DIALOG_DELAY_MS);
@@ -262,7 +263,6 @@ class TableView {
     this.el.mau.setAttribute('aria-pressed', String(myTurn && v.mauCalled));
     this.el.drawBtn.textContent = v.pendingDraw > 0 ? STRINGS.drawPenalty(v.pendingDraw) : STRINGS.draw;
     this.el.drawBtn.disabled = !canDraw(v);
-    this.el.pass.hidden = !canPass(v);
 
     this.renderHand(v, myTurn);
   }
@@ -428,7 +428,10 @@ class TableView {
     for (const e of events) {
       if (e.type === 'played') {
         const top = this.el.discard.querySelector<HTMLElement>('.pile__slot--top .card');
-        const from = e.seat === v.you ? before.hand.get(e.card.id) : before.seats.get(e.seat);
+        // Your own card flies from its old spot in your hand; a card that was
+        // drawn and auto-played in the same move was never there, so it comes
+        // from the draw pile.
+        const from = e.seat === v.you ? (before.hand.get(e.card.id) ?? before.draw) : before.seats.get(e.seat);
         if (top && from) flyFrom(top, from);
       } else if (e.type === 'drew') {
         if (e.seat === v.you) {
@@ -483,9 +486,6 @@ class TableView {
       case 'draw':
         if (canDraw(v)) this.conn.submit({ type: 'draw', player });
         break;
-      case 'pass':
-        this.conn.submit({ type: 'pass', player });
-        break;
       case 'play': {
         const card = v.hand.find((c) => c.id === target.dataset.cardId);
         if (card) await this.play(card);
@@ -513,11 +513,30 @@ class TableView {
   }
 
   /**
+   * A drawn Bube that fits is played automatically, but you name the suit:
+   * opens the suit picker (no Cancel) and plays the Bube with your choice.
+   * @returns resolves when done (or when there is nothing to do)
+   */
+  private async playDrawnJack(): Promise<void> {
+    const v = this.view;
+    if (!v || this.drawnJackPending || v.phase !== 'drawn' || v.current !== v.you || !v.drawnCardId) return;
+    const cardId = v.drawnCardId;
+    this.drawnJackPending = true;
+    await new Promise((r) => setTimeout(r, DRAWN_JACK_DELAY_MS));
+    const wish = await this.pickSuit(false);
+    this.drawnJackPending = false;
+    // null = the table was closed meanwhile (e.g. the host left).
+    if (wish) this.conn.submit({ type: 'play', player: this.conn.playerId, cardId, wish });
+  }
+
+  /**
    * Opens the "Ich wünsche mir…" dialog.
+   * @param cancellable - false hides Cancel and blocks Escape (for a drawn Bube)
    * @returns the chosen suit, or null if cancelled
    */
-  private pickSuit(): Promise<Suit | null> {
+  private pickSuit(cancellable = true): Promise<Suit | null> {
     const dialog = this.el.suitDialog;
+    (dialog.querySelector('[data-suit=""]') as HTMLElement).hidden = !cancellable;
     return new Promise((resolve) => {
       const onClick = (e: MouseEvent) => {
         const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-suit]');
@@ -527,12 +546,18 @@ class TableView {
       const finish = (suit: Suit | null) => {
         dialog.removeEventListener('click', onClick);
         dialog.removeEventListener('close', onClose);
+        dialog.removeEventListener('cancel', onCancel);
         if (dialog.open) dialog.close();
         resolve(suit);
       };
       const onClose = () => finish(null);
+      // Escape fires "cancel"; block it when a suit must be chosen.
+      const onCancel = (e: Event) => {
+        if (!cancellable) e.preventDefault();
+      };
       dialog.addEventListener('click', onClick);
       dialog.addEventListener('close', onClose);
+      dialog.addEventListener('cancel', onCancel);
       dialog.showModal();
     });
   }

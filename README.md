@@ -74,7 +74,7 @@ tests/        Vitest tests for the engine, the bots, and host/guest sessions (fa
 
 - Pick your name, 1–3 opponents, bot strength, and (optionally) change the rules, then **Start game**.
 - Tap a card to play it. There are no hints: if the card doesn't fit, nothing happens. A **Bube** asks *Ich wünsche mir…* — pick a suit.
-- Tap the draw pile or **Draw** if you can't (or don't want to) play. If the drawn card fits, play it or tap **Keep card**.
+- Tap the draw pile or **Draw** if you can't (or don't want to) play. If the drawn card fits, it is played automatically; a drawn **Bube** asks you for the suit first. If it doesn't fit, your turn ends. (With the Mau rule on and one card left, press **Mau!** before drawing.)
 - Optional Mau rule (off by default, switch it on under **Rules**): press **Mau!** before playing your second-to-last card, or you draw a penalty card.
 - In multiplayer, only the host can deal the next round.
 - The round ends when someone has no cards left (*Mau-Mau!*). With scoring on, a points table follows each round.
@@ -124,7 +124,7 @@ else console.log(result.error);            // e.g. 'card_not_playable', 'not_you
 const view = getVisibleState(state, 'b');  // what Ben may see
 ```
 
-Moves: `play` (with `wish` for a Jack, optional `mau: true`), `draw`, `pass` (only after drawing a playable card), `mau`.
+Moves: `play` (with `wish` for a Jack, optional `mau: true`), `draw` (auto-plays a drawn card that fits; a drawn wild Jack waits in phase `drawn` for a `play` with a `wish`), `mau`.
 The same seed always produces the same game, which keeps tests reproducible.
 
 ## Rules config
@@ -139,7 +139,7 @@ All rules live in one object (`src/engine/rules.ts`) and can be toggled.
 | `eightSkips` | `true` | An 8 skips the next player |
 | `jackWild` | `true` | A Jack (Bube) fits on anything; the player wishes a suit ("Ich wünsche mir…") |
 | `jackOnJack` | `false` | Allow a Jack on a Jack |
-| `playDrawnCard` | `true` | After drawing 1, the drawn card may be played if it fits |
+| `playDrawnCard` | `true` | After drawing 1, the drawn card is played automatically if it fits (no choice to keep it) |
 | `mauRequired` | `false` | Must call "Mau" when going down to one card (the Mau! button only shows when this is on) |
 | `mauPenalty` | `1` | Cards drawn for forgetting "Mau" |
 | `scoring` | `false` | Score leftover cards across rounds; lowest total wins |
