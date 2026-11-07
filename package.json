@@ -17,5 +17,8 @@
   },
   "dependencies": {
     "peerjs": "^1.5.5"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }
