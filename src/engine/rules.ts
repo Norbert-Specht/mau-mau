@@ -29,7 +29,7 @@ export interface Rules {
   roundsPerMatch: number;
 }
 
-/** Default rules as described in the project brief. */
+/** Default rules. The Mau call is optional and off by default. */
 export const DEFAULT_RULES: Readonly<Rules> = Object.freeze({
   handSize: 5,
   sevenDrawTwo: true,
@@ -38,7 +38,7 @@ export const DEFAULT_RULES: Readonly<Rules> = Object.freeze({
   jackWild: true,
   jackOnJack: false,
   playDrawnCard: true,
-  mauRequired: true,
+  mauRequired: false,
   mauPenalty: 1,
   scoring: false,
   roundsPerMatch: 5,

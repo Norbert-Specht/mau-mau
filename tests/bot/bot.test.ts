@@ -156,10 +156,11 @@ describe('bots playing full games', () => {
   }
 
   it('normal bots never take the Mau penalty', () => {
-    let s = createGame([{ id: 'p0', name: 'A' }, { id: 'p1', name: 'B' }], rules, 9);
+    const mauRules = makeRules({ mauRequired: true });
+    let s = createGame([{ id: 'p0', name: 'A' }, { id: 'p1', name: 'B' }], mauRules, 9);
     for (let i = 0; i < 500 && (s.phase === 'playing' || s.phase === 'drawn'); i++) {
       const id = s.players[s.current].id;
-      const r = ok(applyMove(s, chooseMove(getVisibleState(s, id), rules, 'normal')!, rules));
+      const r = ok(applyMove(s, chooseMove(getVisibleState(s, id), mauRules, 'normal')!, mauRules));
       expect(r.events.some((e) => e.type === 'drew' && e.reason === 'mau')).toBe(false);
       s = r.state;
     }

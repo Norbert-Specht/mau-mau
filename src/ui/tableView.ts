@@ -1,7 +1,7 @@
 /* ==========================================================================
    Table view
    Renders one player's view of the game: opponents, piles, suit indicator,
-   event log, action buttons and the fanned hand. Re-renders on every update
+   action buttons and the fanned hand. Re-renders on every update
    and then animates what changed (see animate.ts).
    ========================================================================== */
 
@@ -17,13 +17,10 @@ import {
   type VisibleState,
 } from '../engine';
 import type { ConnectionNotice, TableConnection, TableMeta } from '../game/connection';
-import { STRINGS, SUIT_NAMES, SUIT_SYMBOLS, suitText } from '../i18n/strings';
+import { STRINGS, SUIT_NAMES, SUIT_SYMBOLS } from '../i18n/strings';
 import { flyFrom, flyGhostCard, pulse } from './animate';
 import { createCardEl } from './cardView';
-import { describeEvents } from './eventLog';
 
-/** Log lines kept in memory (only the last few are visible). */
-const LOG_LIMIT = 40;
 /** Max face-down cards drawn per opponent; more would just be clutter. */
 const MAX_SEAT_CARDS = 7;
 /** Pause before the round-over dialog so the winning card can land first. */
@@ -52,7 +49,6 @@ export function mountTable(root: HTMLElement, conn: TableConnection, onLeave: ()
 class TableView {
   private view: VisibleState | null = null;
   private meta: TableMeta = { connected: [] };
-  private logLines: string[] = [];
   private roundDialogTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly unsubscribe: () => void;
   private readonly unsubscribeNotice: () => void;
@@ -67,7 +63,6 @@ class TableView {
     suitSymbol: HTMLElement;
     penalty: HTMLElement;
     status: HTMLElement;
-    log: HTMLElement;
     mau: HTMLButtonElement;
     drawBtn: HTMLButtonElement;
     pass: HTMLButtonElement;
@@ -118,9 +113,8 @@ class TableView {
           </div>
         </section>
 
-        <!-- Whose turn + recent events -->
+        <!-- Whose turn -->
         <p class="status" aria-live="polite"></p>
-        <ol class="log" aria-label="${STRINGS.log}"></ol>
 
         <!-- Action buttons -->
         <section class="actions">
@@ -166,7 +160,6 @@ class TableView {
       suitSymbol: q('.suit-indicator__symbol'),
       penalty: q('.suit-indicator__penalty'),
       status: q('.status'),
-      log: q('.log'),
       mau: q('.actions [data-action="mau"]'),
       drawBtn: q('.actions [data-action="draw"]'),
       pass: q('.actions [data-action="pass"]'),
@@ -191,7 +184,7 @@ class TableView {
   /* ---------------------------- Updates ---------------------------- */
 
   /**
-   * Handles a new view from the game: log, render, animate, dialogs.
+   * Handles a new view from the game: render, animate, dialogs.
    * @param view - the new visible state
    * @param events - events that led to it
    * @param isNewDeal - true when cards were just dealt
@@ -203,12 +196,7 @@ class TableView {
     this.view = view;
     this.meta = meta;
 
-    if (isNewDeal) {
-      this.closeRoundDialog();
-      this.logLines = [];
-    }
-    this.logLines.push(...describeEvents(events, view, this.conn.rules));
-    this.logLines = this.logLines.slice(-LOG_LIMIT);
+    if (isNewDeal) this.closeRoundDialog();
 
     this.render();
     this.animate(before, events, isNewDeal);
@@ -261,21 +249,11 @@ class TableView {
     this.el.suitSymbol.textContent = SUIT_SYMBOLS[suit];
     this.el.suitSymbol.className = `suit-indicator__symbol suit--${suit}`;
     this.el.suitSymbol.setAttribute('aria-label', SUIT_NAMES[suit]);
-    this.el.suitSymbol.closest('.suit-indicator')!.classList.toggle('suit-indicator--wish', !!v.wishedSuit);
     this.el.penalty.textContent = v.pendingDraw > 0 ? STRINGS.pendingDraw(v.pendingDraw) : '';
 
     // Status line
     this.el.status.textContent = this.statusText(v);
     this.el.status.classList.toggle('status--yours', myTurn);
-
-    // Log: newest at the bottom.
-    this.el.log.replaceChildren(
-      ...this.logLines.slice(-6).map((line) => {
-        const li = document.createElement('li');
-        li.textContent = line;
-        return li;
-      }),
-    );
 
     // Action buttons
     this.el.mau.hidden = !rules.mauRequired;
@@ -331,13 +309,13 @@ class TableView {
   }
 
   /**
-   * Draws your hand as a fan; playable cards are clickable, others dimmed.
+   * Draws your hand as a fan. On your turn every card is clickable; there is
+   * deliberately no hint which ones fit (a card that doesn't fit does nothing).
    * @param v - current view
    * @param myTurn - whether you may act now
    * @returns nothing
    */
   private renderHand(v: VisibleState, myTurn: boolean): void {
-    const playable = new Set(getPlayableCards(v, this.conn.rules).map((c) => c.id));
     this.el.handArea.classList.toggle('hand-area--active', myTurn);
     this.el.hand.replaceChildren(
       ...v.hand.map((card) => {
@@ -345,12 +323,8 @@ class TableView {
         slot.className = 'hand__slot';
         const btn = createCardEl(card, 'button') as HTMLButtonElement;
         btn.dataset.action = 'play';
-        if (myTurn) {
-          btn.classList.add(playable.has(card.id) ? 'card--playable' : 'card--unplayable');
-          btn.disabled = !playable.has(card.id);
-        } else {
-          btn.disabled = true;
-        }
+        btn.disabled = !myTurn;
+        // Marks the card you just drew, so you can find it in your hand.
         if (card.id === v.drawnCardId) btn.classList.add('card--drawn');
         slot.appendChild(btn);
         return slot;
@@ -404,9 +378,6 @@ class TableView {
       const name = v.players[v.current].name;
       return this.meta.connected[v.current] === false ? STRINGS.waitingFor(name) : STRINGS.theirTurn(name);
     }
-    if (v.phase === 'drawn') return STRINGS.statusDrawn;
-    if (v.pendingDraw > 0) return STRINGS.statusPenalty(v.pendingDraw, this.conn.rules.sevenStacking);
-    if (v.wishedSuit) return STRINGS.statusWish(suitText(v.wishedSuit));
     return STRINGS.yourTurn;
   }
 
@@ -525,11 +496,13 @@ class TableView {
 
   /**
    * Plays a card, asking for a suit first if it is a wild Jack.
+   * A card that doesn't fit is ignored (no hint, no suit picker).
    * @param card - the clicked card
    * @returns resolves when the move was sent (or cancelled)
    */
   private async play(card: Card): Promise<void> {
     const v = this.view!;
+    if (!getPlayableCards(v, this.conn.rules).some((c) => c.id === card.id)) return;
     let wish: Suit | undefined;
     if (isWildJack(card, this.conn.rules) && v.hand.length > 1) {
       const picked = await this.pickSuit();

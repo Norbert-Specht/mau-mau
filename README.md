@@ -64,7 +64,7 @@ src/engine/   Pure game engine — no DOM, no network
 src/bot/      chooseMove(visibleState, rules, difficulty)
 src/game/     Runs a table: controller (engine + bot turns), connection, saved profile
 src/net/      Multiplayer: protocol, host (referee), guest, PeerJS transport, room links
-src/ui/       DOM: setup screen, table view, card elements, animations, log text
+src/ui/       DOM: setup and lobby screens, table view, card elements, animations
 src/i18n/     strings.ts — every UI string, in one place for translation
 public/cards/ Kenney card PNGs (7–Ace of each suit + card back) and their license
 tests/        Vitest tests for the engine, the bots, and host/guest sessions (fake network)
@@ -73,9 +73,9 @@ tests/        Vitest tests for the engine, the bots, and host/guest sessions (fa
 ## How to play
 
 - Pick your name, 1–3 opponents, bot strength, and (optionally) change the rules, then **Start game**.
-- Tap a bright card to play it; dimmed cards don't fit. A **Bube** asks *Ich wünsche mir…* — pick a suit.
+- Tap a card to play it. There are no hints: if the card doesn't fit, nothing happens. A **Bube** asks *Ich wünsche mir…* — pick a suit.
 - Tap the draw pile or **Draw** if you can't (or don't want to) play. If the drawn card fits, play it or tap **Keep card**.
-- Press **Mau!** before playing your second-to-last card, or you draw a penalty card.
+- Optional Mau rule (off by default, switch it on under **Rules**): press **Mau!** before playing your second-to-last card, or you draw a penalty card.
 - In multiplayer, only the host can deal the next round.
 - The round ends when someone has no cards left (*Mau-Mau!*). With scoring on, a points table follows each round.
 
@@ -101,7 +101,7 @@ Things to know:
 
 ## Bots
 
-Bots see only what a human in their seat would see (`VisibleState`). They move after 700 ms so you can follow along, and always call Mau.
+Bots see only what a human in their seat would see (`VisibleState`). They move after 700 ms so you can follow along, and always call Mau when that rule is on.
 
 | Level | Strategy |
 |---|---|
@@ -140,7 +140,7 @@ All rules live in one object (`src/engine/rules.ts`) and can be toggled.
 | `jackWild` | `true` | A Jack (Bube) fits on anything; the player wishes a suit ("Ich wünsche mir…") |
 | `jackOnJack` | `false` | Allow a Jack on a Jack |
 | `playDrawnCard` | `true` | After drawing 1, the drawn card may be played if it fits |
-| `mauRequired` | `true` | Must call "Mau" when going down to one card |
+| `mauRequired` | `false` | Must call "Mau" when going down to one card (the Mau! button only shows when this is on) |
 | `mauPenalty` | `1` | Cards drawn for forgetting "Mau" |
 | `scoring` | `false` | Score leftover cards across rounds; lowest total wins |
 | `roundsPerMatch` | `5` | Rounds in a scored match |

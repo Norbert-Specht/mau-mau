@@ -329,25 +329,32 @@ describe('reshuffling the discard pile', () => {
 
 /* ---------------------------- Mau ---------------------------- */
 
-describe('Mau call', () => {
+describe('Mau call (optional rule, off by default)', () => {
+  const mauRules = makeRules({ mauRequired: true });
   const s = makeState({ hands: ['9H KC', 'AS QS'], discard: '10H', draw: '8C 8D' });
 
-  it('penalizes going down to one card without calling Mau', () => {
+  it('has no penalty with the default rules', () => {
     const r = ok(applyMove(s, { type: 'play', player: 'p0', cardId: '9-hearts' }, rules));
+    expect(r.state.hands[0]).toHaveLength(1);
+    expect(r.events.some((e) => e.type === 'drew')).toBe(false);
+  });
+
+  it('penalizes going down to one card without calling Mau', () => {
+    const r = ok(applyMove(s, { type: 'play', player: 'p0', cardId: '9-hearts' }, mauRules));
     expect(r.state.hands[0]).toHaveLength(2);
     expect(r.events).toContainEqual({ type: 'drew', seat: 0, count: 1, reason: 'mau', cards: [c('8D')] });
   });
 
   it('no penalty when Mau is pressed before playing', () => {
-    const called = ok(applyMove(s, { type: 'mau', player: 'p0' }, rules));
+    const called = ok(applyMove(s, { type: 'mau', player: 'p0' }, mauRules));
     expect(called.events).toEqual([{ type: 'mau', seat: 0 }]);
     expect(called.state.current).toBe(0);
-    const r = ok(applyMove(called.state, { type: 'play', player: 'p0', cardId: '9-hearts' }, rules));
+    const r = ok(applyMove(called.state, { type: 'play', player: 'p0', cardId: '9-hearts' }, mauRules));
     expect(r.state.hands[0]).toHaveLength(1);
   });
 
   it('no penalty when Mau is pressed together with the card', () => {
-    const r = ok(applyMove(s, { type: 'play', player: 'p0', cardId: '9-hearts', mau: true }, rules));
+    const r = ok(applyMove(s, { type: 'play', player: 'p0', cardId: '9-hearts', mau: true }, mauRules));
     expect(r.state.hands[0]).toHaveLength(1);
     expect(r.events[0]).toEqual({ type: 'mau', seat: 0 });
   });
@@ -355,24 +362,24 @@ describe('Mau call', () => {
   it('a Mau call only lasts for the current turn', () => {
     // p0 calls Mau too early (3 cards → 2), then forgets on the next turn (2 → 1).
     const t = makeState({ hands: ['9H 10H KH', 'AH QS QD'], discard: '10C', draw: '8C 8D 7C' });
-    let st = ok(applyMove(t, { type: 'play', player: 'p0', cardId: '10-hearts', mau: true }, rules)).state;
+    let st = ok(applyMove(t, { type: 'play', player: 'p0', cardId: '10-hearts', mau: true }, mauRules)).state;
     expect(st.hands[0]).toHaveLength(2);
     expect(st.mauCalled).toBe(false);
-    st = ok(applyMove(st, { type: 'play', player: 'p1', cardId: 'A-hearts' }, rules)).state;
-    const r = ok(applyMove(st, { type: 'play', player: 'p0', cardId: '9-hearts' }, rules));
+    st = ok(applyMove(st, { type: 'play', player: 'p1', cardId: 'A-hearts' }, mauRules)).state;
+    const r = ok(applyMove(st, { type: 'play', player: 'p0', cardId: '9-hearts' }, mauRules));
     expect(r.events.some((e) => e.type === 'drew' && e.reason === 'mau')).toBe(true);
     expect(r.state.hands[0]).toHaveLength(2);
   });
 
   it('applies after playing the card just drawn', () => {
     const t = makeState({ hands: ['KC', 'AS'], discard: '10H', draw: '9H' });
-    const drawn = ok(applyMove(t, { type: 'draw', player: 'p0' }, rules)).state;
-    const r = ok(applyMove(drawn, { type: 'play', player: 'p0', cardId: '9-hearts' }, rules));
+    const drawn = ok(applyMove(t, { type: 'draw', player: 'p0' }, mauRules)).state;
+    const r = ok(applyMove(drawn, { type: 'play', player: 'p0', cardId: '9-hearts' }, mauRules));
     expect(r.state.hands[0]).toHaveLength(2);
   });
 
   it('uses the configured penalty size, and can be turned off', () => {
-    const two = ok(applyMove(s, { type: 'play', player: 'p0', cardId: '9-hearts' }, makeRules({ mauPenalty: 2 })));
+    const two = ok(applyMove(s, { type: 'play', player: 'p0', cardId: '9-hearts' }, makeRules({ mauRequired: true, mauPenalty: 2 })));
     expect(two.state.hands[0]).toHaveLength(3);
     const off = ok(applyMove(s, { type: 'play', player: 'p0', cardId: '9-hearts' }, makeRules({ mauRequired: false })));
     expect(off.state.hands[0]).toHaveLength(1);
@@ -380,7 +387,7 @@ describe('Mau call', () => {
 
   it('is not needed for the winning card', () => {
     const t = makeState({ hands: ['9H', 'AS'], discard: '10H' });
-    const r = ok(applyMove(t, { type: 'play', player: 'p0', cardId: '9-hearts' }, rules));
+    const r = ok(applyMove(t, { type: 'play', player: 'p0', cardId: '9-hearts' }, mauRules));
     expect(r.state.phase).toBe('roundOver');
     expect(r.state.hands[0]).toHaveLength(0);
   });

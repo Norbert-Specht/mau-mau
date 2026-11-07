@@ -83,10 +83,6 @@ export const STRINGS = {
   currentSuit: 'Suit',
   pendingDraw: (n: number) => `+${n}`,
   roundLabel: (round: number, total: number | null) => (total ? `Round ${round} / ${total}` : `Round ${round}`),
-  log: 'Log',
-  statusDrawn: 'Play the drawn card or keep it',
-  statusPenalty: (n: number, canStack: boolean) => (canStack ? `Play a 7 or draw ${n}` : `Draw ${n}`),
-  statusWish: (suit: string) => `Your turn – Ich wünsche mir ${suit}`,
 
   /* ---- Suit picker ---- */
   pickSuitTitle: 'Ich wünsche mir…',
@@ -146,15 +142,6 @@ export const STRINGS = {
 /* ---------------------------- Card names ---------------------------- */
 
 /**
- * Short card name for logs and screen readers, e.g. "7 ♥" or "Bube ♣".
- * @param card - suit and rank
- * @returns display name
- */
-export function cardName(card: { suit: Suit; rank: Rank }): string {
-  return `${RANK_NAMES[card.rank]} ${SUIT_SYMBOLS[card.suit]}`;
-}
-
-/**
  * Long card name for screen readers, e.g. "Herz 7".
  * @param card - suit and rank
  * @returns accessible label
@@ -162,32 +149,3 @@ export function cardName(card: { suit: Suit; rank: Rank }): string {
 export function cardLabel(card: { suit: Suit; rank: Rank }): string {
   return `${SUIT_NAMES[card.suit]} ${RANK_NAMES[card.rank]}`;
 }
-
-/**
- * Suit with symbol, e.g. "Herz ♥".
- * @param suit - the suit
- * @returns display text
- */
-export function suitText(suit: Suit): string {
-  return `${SUIT_NAMES[suit]} ${SUIT_SYMBOLS[suit]}`;
-}
-
-/* ---------------------------- Event log lines ---------------------------- */
-/* `who` is already "You" or the player's name; `you` says which, so the   */
-/* sentence can be phrased correctly.                                       */
-
-export const LOG = {
-  played: (who: string, card: string) => `${who} played ${card}`,
-  wished: (suit: string) => ` – Ich wünsche mir ${suit}`,
-  mustDraw: (who: string, n: number) => ` – ${who} must draw ${n}`,
-  drewPenalty: (who: string, n: number) => `${who} drew ${n} cards`,
-  drewOne: (who: string) => `${who} drew a card`,
-  drewCard: (card: string) => `You drew ${card}`,
-  mauPenalty: (who: string, n: number) => `${who} forgot to say Mau – +${n}`,
-  skipped: (who: string, you: boolean) => (you ? 'You are skipped' : `${who} is skipped`),
-  mau: (who: string) => `${who}: Mau!`,
-  passed: (who: string) => `${who} passed`,
-  reshuffled: 'Discard pile reshuffled',
-  roundOver: (who: string, you: boolean) => (you ? 'Mau-Mau! You win the round' : `Mau-Mau! ${who} wins the round`),
-  matchOver: (names: string) => `${names} won the match`,
-};

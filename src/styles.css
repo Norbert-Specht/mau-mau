@@ -383,14 +383,14 @@ select {
 }
 
 /* ---------------------------- Table layout ---------------------------- */
-/* One full-height column: top bar, opponents, piles, status/log, actions, hand. */
+/* One full-height column: top bar, opponents, piles, status, actions, hand. */
 .table {
   height: 100vh;
   height: 100dvh; /* dvh excludes mobile browser bars where supported */
   display: grid;
-  /* topbar, opponents, center (fills), status, log, actions, hand.
+  /* topbar, opponents, center (fills), status, actions, hand.
      The fixed-position .notice banner takes no row. */
-  grid-template-rows: auto auto 1fr auto auto auto auto;
+  grid-template-rows: auto auto 1fr auto auto auto;
   /* minmax(0, 1fr): without it the column grows to fit a big hand and the
      table becomes wider than the screen. */
   grid-template-columns: minmax(0, 1fr);
@@ -553,11 +553,6 @@ select {
   cursor: default;
 }
 
-/* Glow on the draw pile when drawing is possible. */
-.pile--draw:not(:disabled) .pile__stack .card:last-child {
-  filter: drop-shadow(0 0 6px var(--accent));
-}
-
 .pile__stack .card {
   position: absolute;
   inset: 0;
@@ -617,16 +612,6 @@ select {
   box-shadow: 0 2px 4px var(--shadow);
 }
 
-/* After a Jack the wished suit gets the turn color, so it can't be missed. */
-.suit-indicator--wish .suit-indicator__symbol {
-  box-shadow: 0 0 0 3px var(--accent), 0 2px 4px var(--shadow);
-}
-
-.suit-indicator--wish .suit-indicator__label {
-  color: var(--accent);
-  font-weight: 700;
-}
-
 .suit--hearts,
 .suit--diamonds {
   color: var(--red-suit);
@@ -650,7 +635,7 @@ select {
   border-radius: 999px;
 }
 
-/* ---------------------------- Status + log ---------------------------- */
+/* ---------------------------- Status ---------------------------- */
 .status {
   margin: 0;
   padding: 2px 16px;
@@ -661,35 +646,6 @@ select {
 
 .status--yours {
   color: var(--accent);
-}
-
-.log {
-  list-style: none;
-  margin: 4px 16px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.18);
-  font-size: 0.78rem;
-  line-height: 1.35;
-  /* Room for 3 lines on phones; older lines are clipped from the top. */
-  height: calc(3 * 1.35em + 12px);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-}
-
-.log li {
-  /* Don't let flexbox squash lines into each other; overflow clips the oldest instead. */
-  flex: none;
-  color: var(--on-felt-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.log li:last-child {
-  color: var(--on-felt);
 }
 
 /* ---------------------------- Actions ---------------------------- */
@@ -748,21 +704,11 @@ select {
 
 .hand .card {
   cursor: default;
-  transition: translate 0.15s, filter 0.15s;
 }
 
-.hand .card--playable {
+/* On your turn every card looks the same: no hint which ones fit. */
+.hand .card:not(:disabled) {
   cursor: pointer;
-}
-
-.hand .card--playable:hover,
-.hand .card--playable:focus-visible {
-  translate: 0 -12px;
-}
-
-/* Illegal cards on your turn are darkened and desaturated. */
-.hand .card--unplayable {
-  filter: brightness(0.55) saturate(0.4) drop-shadow(0 2px 3px var(--shadow));
 }
 
 /* The card you just drew is marked so you can find it. */
@@ -862,22 +808,9 @@ select {
   flex-wrap: wrap;
 }
 
-/* ---------------------------- Larger screens ---------------------------- */
-@media (min-width: 700px) {
-  .log {
-    height: calc(4 * 1.35em + 12px);
-    max-width: 520px;
-    width: calc(100% - 32px);
-    margin: 4px auto;
-  }
-}
-
 /* Short landscape phones: tighten vertical spacing. */
 @media (max-height: 560px) {
   :root {
     --card-w: clamp(44px, 9vw, 64px);
-  }
-  .log {
-    height: calc(2 * 1.35em + 12px);
   }
 }
