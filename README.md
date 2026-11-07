@@ -3,6 +3,8 @@
 A browser-based Mau-Mau card game (German shedding game, 32-card deck).
 Play against 1–3 bots or with friends over a shared link — no accounts, no backend.
 
+**▶ Play: https://mau-mau-three.vercel.app**
+
 ## Status
 
 | Step | What | Status |
@@ -10,11 +12,11 @@ Play against 1–3 bots or with friends over a shared link — no accounts, no b
 | 1 | Project scaffold + pure game engine + Vitest tests | ✅ done |
 | 2 | Local game vs. bots with Kenney card art | ✅ done |
 | 3 | PeerJS multiplayer with shared links | ✅ done |
-| 4 | Vercel deployment (auto-deploy from `main`) | ⏳ next |
+| 4 | Vercel deployment (auto-deploy from `main`) | ✅ done |
 
 ## Setup
 
-Requires **Node 22** (see `.nvmrc`). Vite and Vitest no longer support Node 16.
+Requires **Node 22** (see `.nvmrc` and `engines` in `package.json`). Vite and Vitest no longer support Node 16.
 
 ```bash
 nvm use        # picks Node 22 from .nvmrc
@@ -31,7 +33,21 @@ npm install
 | `npm run build` | Type-check and build the static site into `dist/` |
 | `npm run preview` | Serve the built `dist/` locally |
 
-Deployment instructions will be added in step 4.
+## Deployment
+
+The site is a static Vite build hosted on Vercel (project `mau-mau`, connected to this GitHub repo).
+
+- **Every push to `main` deploys to production** at https://mau-mau-three.vercel.app. Pushes to other branches get preview URLs.
+- Vercel detects Vite automatically: build command `npm run build`, output folder `dist/`. No `vercel.json` is needed.
+- The Node version for builds comes from `"engines": { "node": "22.x" }` in `package.json`.
+- There are no environment variables or secrets; multiplayer uses the free public PeerJS server.
+
+Manual deploy from your machine (optional):
+
+```bash
+npx vercel           # preview deployment
+npx vercel --prod    # production deployment
+```
 
 ## Project layout
 
