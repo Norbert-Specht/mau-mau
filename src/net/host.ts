@@ -160,7 +160,7 @@ export class HostSession {
         this.viewListeners.add(listener);
         if (this.controller) {
           const state = this.controller.state;
-          listener(getVisibleState(state, hostId), [], true, { connected: this.connectedList() });
+          listener(getVisibleState(state, hostId), [], true, { connected: this.connectedList(), bots: this.botList() });
         }
         return () => this.viewListeners.delete(listener);
       },
@@ -305,6 +305,14 @@ export class HostSession {
   }
 
   /**
+   * Which seats are bots, in seat order (display only).
+   * @returns bots[seat]
+   */
+  private botList(): boolean[] {
+    return this.seats.map((s) => s.kind === 'bot');
+  }
+
+  /**
    * Sends the lobby to every guest and the host UI.
    * @returns nothing
    */
@@ -334,13 +342,14 @@ export class HostSession {
    */
   private broadcastState(state: GameState, events: GameEvent[], isNewDeal: boolean): void {
     const connected = this.connectedList();
+    const bots = this.botList();
     this.seats.forEach((seat, index) => {
       const view = getVisibleState(state, seat.publicId);
       const visibleEvents = redactEvents(events, index);
       if (seat.isHost) {
-        this.viewListeners.forEach((l) => l(view, visibleEvents, isNewDeal, { connected }));
+        this.viewListeners.forEach((l) => l(view, visibleEvents, isNewDeal, { connected, bots }));
       } else if (seat.channel) {
-        seat.channel.send({ t: 'state', view, events: visibleEvents, isNewDeal, connected, rules: this.rules } satisfies HostMessage);
+        seat.channel.send({ t: 'state', view, events: visibleEvents, isNewDeal, connected, bots, rules: this.rules } satisfies HostMessage);
       }
     });
   }

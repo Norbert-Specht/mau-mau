@@ -1,0 +1,31 @@
+/* ==========================================================================
+   Base page styles for the game app (tokens and components come first).
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  /* The area outside the table (wide screens) is the felt's deep shadow tone. */
+  background: var(--felt-deep);
+  color: var(--on-felt);
+  font-family: var(--font-body);
+  /* Stops double-tap zoom on fast card taps (mobile Safari/Chrome). */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+button {
+  font: inherit;
+}

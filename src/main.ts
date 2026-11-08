@@ -6,7 +6,11 @@
    - joining a room from a #room=<code> link
    ========================================================================== */
 
-import './styles.css';
+import './ui/theme/tokens.css';
+import './ui/theme/components.css';
+import './ui/base.css';
+import './ui/game.css';
+import './ui/menus.css';
 import { createDeck, type Rules } from './engine';
 import { GameController, type SeatConfig } from './game/controller';
 import { localConnection } from './game/connection';

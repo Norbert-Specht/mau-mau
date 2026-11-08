@@ -1,45 +1,69 @@
 /* ==========================================================================
    Table view
-   Renders one player's view of the game: opponents, piles, suit indicator,
-   action buttons and the fanned hand. Re-renders on every update
-   and then animates what changed (see animate.ts).
+   One player's view of the game on the felt table: opponents (avatars,
+   counts, fans of backs), the piles, the wished-suit badge, the 7-penalty
+   chip stack, the turn-marker die, your fanned hand and the Mau! button.
+
+   Every update re-renders what changed, then animates it (theme/motion.ts):
+   deals and plays fly along arcs, specials get a moment (chips pop, the
+   skip stamp hits, the suit picker fans out), and Mau-Mau! ends in confetti.
+   Deliberately no playing hints: cards don't show whether they fit.
    ========================================================================== */
 
-import {
-  canDraw,
-  getPlayableCards,
-  isWildJack,
-  SUITS,
-  type Card,
-  type GameEvent,
-  type Suit,
-  type VisibleState,
-} from '../engine';
+import { canDraw, getPlayableCards, isWildJack, SUITS, type Card, type GameEvent, type Suit, type VisibleState } from '../engine';
 import type { ConnectionNotice, TableConnection, TableMeta } from '../game/connection';
-import { STRINGS, SUIT_NAMES, SUIT_SYMBOLS } from '../i18n/strings';
-import { flyFrom, flyGhostCard, pulse } from './animate';
+import { STRINGS, SUIT_NAMES } from '../i18n/strings';
 import { createCardEl } from './cardView';
+import { animalAvatar, BOT_ANIMALS, initialAvatar } from './theme/avatars';
+import { confetti, flash, flyArc, pop, shake, stamp } from './theme/motion';
+import { chipHtml, chipsFor, dieHtml } from './theme/props';
+import { suitSvg } from './theme/suits';
 
-/** Max face-down cards drawn per opponent; more would just be clutter. */
-const MAX_SEAT_CARDS = 7;
-/** Pause before the round-over dialog so the winning card can land first. */
-const ROUND_DIALOG_DELAY_MS = 900;
+/* ---------------------------- Constants ---------------------------- */
+
+/** Most backs shown in an opponent's fan; their exact count is on the badge. */
+const MAX_FAN = 6;
+/** Discard cards drawn on screen (the rest are hidden underneath). */
+const DISCARD_VISIBLE = 4;
+/** Most chips in the 7-penalty stack (one per card to draw); the label has the exact number. */
+const MAX_PENALTY_CHIPS = 8;
+/** Pause before the end-of-round screen, so the last card lands and confetti flies first. */
+const ROUND_PANEL_DELAY_MS = 1200;
 /** Let a drawn Bube fly into the hand before the suit picker opens. */
-const DRAWN_JACK_DELAY_MS = 450;
-/** Stagger between cards in multi-card animations (deal, draw 4, …). */
-const STAGGER_MS = 80;
+const DRAWN_JACK_DELAY_MS = 600;
+/** Delay between cards in multi-card flights (deal, draw 4, …). */
+const STAGGER_MS = 70;
+/** How long a reaction bubble stays readable. */
+const BUBBLE_HOLD_MS = 1000;
+/** Spots on the suit picker's arc, in degrees from vertical. */
+const PICKER_ANGLES = [-60, -20, 20, 60];
 
 /** Screen positions captured before a re-render, used to animate from. */
 interface Snapshot {
-  hand: Map<string, DOMRect>;
+  hand: Map<string, { rect: DOMRect; angle: number }>;
   draw: DOMRect;
   seats: Map<number, DOMRect>;
+  fanCounts: Map<number, number>;
+  current: number | null;
+}
+
+/** The parts of one opponent seat that change between updates. */
+interface SeatParts {
+  root: HTMLElement;
+  avatar: HTMLElement;
+  count: HTMLElement;
+  name: HTMLElement;
+  status: HTMLElement;
+  fan: HTMLElement;
+  marker: HTMLElement;
+  bubble: HTMLElement;
+  stamp: HTMLElement;
 }
 
 /**
  * Mounts the table UI.
  * @param root - container element (content replaced)
- * @param conn - connection to the game (local or, later, remote)
+ * @param conn - connection to the game (local or remote)
  * @param onLeave - called after the player leaves via the menu
  * @returns nothing
  */
@@ -49,31 +73,41 @@ export function mountTable(root: HTMLElement, conn: TableConnection, onLeave: ()
 
 class TableView {
   private view: VisibleState | null = null;
-  private meta: TableMeta = { connected: [] };
+  private meta: TableMeta = { connected: [], bots: [] };
+  private seats = new Map<number, SeatParts>();
+  /** The turn-marker die (one element that moves from seat to seat). */
+  private readonly marker: HTMLElement;
   /** True while the suit picker for a drawn Bube is open (avoids opening it twice). */
   private drawnJackPending = false;
-  private roundDialogTimer: ReturnType<typeof setTimeout> | null = null;
+  private roundPanelTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly unsubscribe: () => void;
   private readonly unsubscribeNotice: () => void;
   private readonly el: {
     round: HTMLElement;
     opponents: HTMLElement;
     draw: HTMLButtonElement;
-    drawStack: HTMLElement;
-    drawCount: HTMLElement;
     discard: HTMLElement;
-    suitLabel: HTMLElement;
-    suitSymbol: HTMLElement;
+    wish: HTMLElement;
+    wishDisc: HTMLElement;
     penalty: HTMLElement;
+    penaltyStack: HTMLElement;
+    penaltyLabel: HTMLElement;
+    penaltyBubble: HTMLElement;
     status: HTMLElement;
-    mau: HTMLButtonElement;
+    me: HTMLElement;
+    meBubble: HTMLElement;
+    meStamp: HTMLElement;
+    meMarker: HTMLElement;
     drawBtn: HTMLButtonElement;
-    handArea: HTMLElement;
+    mau: HTMLButtonElement;
     hand: HTMLElement;
-    suitDialog: HTMLDialogElement;
-    roundDialog: HTMLDialogElement;
+    picker: HTMLElement;
+    pickerOverlay: HTMLElement;
+    pickerCancel: HTMLButtonElement;
+    roundOverlay: HTMLElement;
+    roundPanel: HTMLElement;
     notice: HTMLElement;
-    hostLeftDialog: HTMLDialogElement;
+    hostLeftOverlay: HTMLElement;
   };
 
   /**
@@ -88,95 +122,108 @@ class TableView {
     private readonly onLeave: () => void,
   ) {
     root.innerHTML = `
-      <div class="table">
+      <div class="game felt felt--rim">
         <!-- Connection banner (multiplayer guests) -->
         <div class="notice" role="status" hidden></div>
 
         <!-- Top bar: menu and round number -->
-        <header class="topbar">
-          <button type="button" class="btn btn--small" data-action="menu">${STRINGS.menu}</button>
-          <span class="topbar__round"></span>
+        <header class="game__bar">
+          <button type="button" class="btn btn--ghost btn--small" data-action="menu">${STRINGS.menu}</button>
+          <span class="game__round"></span>
         </header>
 
-        <!-- Opponents (in turn order after you) -->
-        <section class="opponents"></section>
+        <!-- Opponents: a row on phones, around the table on wide screens -->
+        <section class="game__opponents"></section>
 
-        <!-- Center: draw pile, discard pile, current suit -->
-        <section class="center">
-          <button type="button" class="pile pile--draw" data-action="draw">
-            <span class="pile__stack"></span>
-            <span class="pile__count"></span>
-          </button>
+        <!-- Center: draw pile, discard pile, wished suit, 7-penalty chips -->
+        <section class="game__center">
+          <button type="button" class="pile pile--draw" data-action="draw"></button>
           <div class="pile pile--discard"></div>
-          <div class="suit-indicator">
-            <span class="suit-indicator__label"></span>
-            <span class="suit-indicator__symbol"></span>
-            <span class="suit-indicator__penalty"></span>
+          <div class="game__side">
+            <div class="suit-badge" hidden><span class="suit-badge__disc"></span>${STRINGS.wishLabel}</div>
+            <div class="penalty" hidden>
+              <span class="penalty__bubble bubble"></span>
+              <span class="chip-stack"></span>
+              <span class="penalty__label"></span>
+            </div>
           </div>
         </section>
 
         <!-- Whose turn -->
-        <p class="status" aria-live="polite"></p>
+        <p class="game__status" aria-live="polite"></p>
 
-        <!-- Action buttons -->
-        <section class="actions">
-          <button type="button" class="btn btn--mau" data-action="mau">${STRINGS.mauButton}</button>
-          <button type="button" class="btn" data-action="draw"></button>
+        <!-- You: speech bubble, skip stamp, buttons, hand -->
+        <section class="me">
+          <span class="bubble-slot me__bubble"><span class="bubble bubble--big"></span></span>
+          <span class="stamp-slot me__stamp"><span class="stamp">${STRINGS.skipStamp}</span></span>
+          <div class="me__actions">
+            <span class="seat__marker me__marker"></span>
+            <button type="button" class="btn" data-action="draw"></button>
+            <button type="button" class="mau-btn" data-action="mau">${STRINGS.mauButton}</button>
+          </div>
+          <div class="hand"></div>
         </section>
-
-        <!-- Your hand -->
-        <section class="hand-area"><div class="hand"></div></section>
       </div>
 
-      <!-- Suit picker for a wild Jack -->
-      <dialog class="dialog suit-picker">
-        <h2>${STRINGS.pickSuitTitle}</h2>
-        <div class="suit-picker__grid">
-          ${SUITS.map((s) => `<button type="button" class="suit-btn suit-btn--${s}" data-suit="${s}"><span>${SUIT_SYMBOLS[s]}</span>${SUIT_NAMES[s]}</button>`).join('')}
+      <!-- Suit picker: four tokens fan out ("Ich wünsche mir…") -->
+      <div class="overlay picker-overlay" hidden>
+        <div class="picker-wrap">
+          <div class="suit-picker">
+            ${SUITS.map((s, i) => `<button type="button" class="suit-token" data-suit="${s}" aria-label="${SUIT_NAMES[s]}" style="--angle:${PICKER_ANGLES[i]}deg;transition-delay:${i * 45}ms">${suitSvg(s)}</button>`).join('')}
+            <span class="suit-picker__title">${STRINGS.pickSuitTitle}</span>
+          </div>
+          <button type="button" class="btn btn--ghost" data-suit="">${STRINGS.cancel}</button>
         </div>
-        <button type="button" class="btn" data-suit="">${STRINGS.cancel}</button>
-      </dialog>
+      </div>
 
-      <!-- Round / match result -->
-      <dialog class="dialog round-over"></dialog>
+      <!-- End of round / match -->
+      <div class="overlay round-overlay" hidden><div class="panel end-panel" role="dialog" aria-modal="true"></div></div>
 
       <!-- Host closed the game (multiplayer guests) -->
-      <dialog class="dialog host-left">
-        <h2>${STRINGS.hostLeftTitle}</h2>
-        <p>${STRINGS.hostLeft}</p>
-        <div class="dialog__buttons">
+      <div class="overlay host-left-overlay" hidden>
+        <div class="panel end-panel" role="alertdialog" aria-modal="true">
+          <h2>${STRINGS.hostLeftTitle}</h2>
+          <p>${STRINGS.hostLeft}</p>
           <button type="button" class="btn btn--primary" data-host-left>${STRINGS.backToMenu}</button>
         </div>
-      </dialog>`;
+      </div>`;
 
     const q = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
     this.el = {
-      round: q('.topbar__round'),
-      opponents: q('.opponents'),
+      round: q('.game__round'),
+      opponents: q('.game__opponents'),
       draw: q('.pile--draw'),
-      drawStack: q('.pile__stack'),
-      drawCount: q('.pile__count'),
       discard: q('.pile--discard'),
-      suitLabel: q('.suit-indicator__label'),
-      suitSymbol: q('.suit-indicator__symbol'),
-      penalty: q('.suit-indicator__penalty'),
-      status: q('.status'),
-      mau: q('.actions [data-action="mau"]'),
-      drawBtn: q('.actions [data-action="draw"]'),
-      handArea: q('.hand-area'),
+      wish: q('.suit-badge'),
+      wishDisc: q('.suit-badge__disc'),
+      penalty: q('.penalty'),
+      penaltyStack: q('.penalty .chip-stack'),
+      penaltyLabel: q('.penalty__label'),
+      penaltyBubble: q('.penalty__bubble'),
+      status: q('.game__status'),
+      me: q('.me'),
+      meBubble: q('.me__bubble'),
+      meStamp: q('.me__stamp'),
+      meMarker: q('.me__marker'),
+      drawBtn: q('.me__actions [data-action="draw"]'),
+      mau: q('.me__actions [data-action="mau"]'),
       hand: q('.hand'),
-      suitDialog: q('.suit-picker'),
-      roundDialog: q('.round-over'),
+      picker: q('.suit-picker'),
+      pickerOverlay: q('.picker-overlay'),
+      pickerCancel: q('.picker-overlay [data-suit=""]'),
+      roundOverlay: q('.round-overlay'),
+      roundPanel: q('.round-overlay .end-panel'),
       notice: q('.notice'),
-      hostLeftDialog: q('.host-left'),
+      hostLeftOverlay: q('.host-left-overlay'),
     };
+
+    this.marker = document.createElement('span');
+    this.marker.className = 'turn-die';
+    this.marker.innerHTML = dieHtml(1 + Math.floor(Math.random() * 6));
 
     root.addEventListener('click', this.onClick);
     window.addEventListener('resize', this.onResize);
-    // The result dialog must be closed with its buttons, not Escape.
-    this.el.roundDialog.addEventListener('cancel', (e) => e.preventDefault());
-    this.el.hostLeftDialog.addEventListener('cancel', (e) => e.preventDefault());
-    this.el.hostLeftDialog.querySelector('[data-host-left]')!.addEventListener('click', () => this.leave());
+    this.el.hostLeftOverlay.querySelector('[data-host-left]')!.addEventListener('click', () => this.leave());
     this.unsubscribe = conn.subscribe(this.onUpdate);
     this.unsubscribeNotice = conn.subscribeNotice?.(this.onNotice) ?? (() => {});
   }
@@ -184,26 +231,25 @@ class TableView {
   /* ---------------------------- Updates ---------------------------- */
 
   /**
-   * Handles a new view from the game: render, animate, dialogs.
+   * Handles a new view: render, animate, then any follow-ups (picker, end screen).
    * @param view - the new visible state
    * @param events - events that led to it
    * @param isNewDeal - true when cards were just dealt
-   * @param meta - who is online
+   * @param meta - who is online and who is a bot
    * @returns nothing
    */
   private onUpdate = (view: VisibleState, events: GameEvent[], isNewDeal: boolean, meta: TableMeta): void => {
     const before = this.snapshot();
     this.view = view;
     this.meta = meta;
-
-    if (isNewDeal) this.closeRoundDialog();
+    if (isNewDeal) this.closeRoundPanel();
 
     this.render();
     this.animate(before, events, isNewDeal);
     void this.playDrawnJack();
 
-    if ((view.phase === 'roundOver' || view.phase === 'matchOver') && !this.roundDialogTimer) {
-      this.roundDialogTimer = setTimeout(() => this.showRoundDialog(), ROUND_DIALOG_DELAY_MS);
+    if ((view.phase === 'roundOver' || view.phase === 'matchOver') && !this.roundPanelTimer && this.el.roundOverlay.hidden) {
+      this.roundPanelTimer = setTimeout(() => this.showRoundPanel(), ROUND_PANEL_DELAY_MS);
     }
   };
 
@@ -218,94 +264,172 @@ class TableView {
     const rules = this.conn.rules;
     const myTurn = v.current === v.you && (v.phase === 'playing' || v.phase === 'drawn');
 
-    // Round number
     this.el.round.textContent = STRINGS.roundLabel(v.round, rules.scoring ? rules.roundsPerMatch : null);
+    this.renderSeats(v);
 
-    this.renderOpponents(v);
-
-    // Draw pile: a few stacked backs to suggest thickness, plus the count.
-    this.el.drawStack.replaceChildren(
+    // Draw pile: three backs for thickness (fewer when nearly empty) and the count.
+    this.el.draw.replaceChildren(
       ...Array.from({ length: Math.min(3, v.drawPileCount) }, () => createCardEl(null)),
+      Object.assign(document.createElement('span'), { className: 'pile__count', textContent: String(v.drawPileCount) }),
     );
-    this.el.drawCount.textContent = String(v.drawPileCount);
     this.el.draw.setAttribute('aria-label', STRINGS.drawPileLabel(v.drawPileCount));
     this.el.draw.disabled = !canDraw(v);
 
-    // Discard pile: top card plus two under it, slightly rotated for a messy pile.
-    const visiblePile = v.discardPile.slice(-3);
+    // Discard pile: the last few cards, each at its own small tilt.
+    const visible = v.discardPile.slice(-DISCARD_VISIBLE);
     this.el.discard.replaceChildren(
-      ...visiblePile.map((card, i) => {
+      ...visible.map((card, i) => {
         const slot = document.createElement('div');
         slot.className = 'pile__slot';
-        slot.style.setProperty('--tilt', `${tiltFor(card.id)}deg`);
-        if (i === visiblePile.length - 1) slot.classList.add('pile__slot--top');
+        slot.style.setProperty('--rot', `${tiltFor(card.id)}deg`);
+        if (i === visible.length - 1) slot.classList.add('pile__slot--top');
         slot.appendChild(createCardEl(card));
         return slot;
       }),
     );
 
-    // Suit indicator: the wished suit after a Jack, otherwise the top card's suit.
-    const suit: Suit = v.wishedSuit ?? v.topCard.suit;
-    this.el.suitLabel.textContent = v.wishedSuit ? STRINGS.wishLabel : STRINGS.currentSuit;
-    this.el.suitSymbol.textContent = SUIT_SYMBOLS[suit];
-    this.el.suitSymbol.className = `suit-indicator__symbol suit--${suit}`;
-    this.el.suitSymbol.setAttribute('aria-label', SUIT_NAMES[suit]);
-    this.el.penalty.textContent = v.pendingDraw > 0 ? STRINGS.pendingDraw(v.pendingDraw) : '';
+    // Wished suit badge (only after a Bube, until the next card).
+    this.el.wish.hidden = !v.wishedSuit;
+    if (v.wishedSuit && this.el.wish.dataset.suit !== v.wishedSuit) {
+      this.el.wishDisc.innerHTML = suitSvg(v.wishedSuit);
+      this.el.wishDisc.setAttribute('aria-label', SUIT_NAMES[v.wishedSuit]);
+    }
+    this.el.wish.dataset.suit = v.wishedSuit ?? '';
 
-    // Status line
+    // 7-penalty: one chip per card to draw.
+    this.el.penalty.hidden = v.pendingDraw === 0;
+    const chips = Math.min(v.pendingDraw, MAX_PENALTY_CHIPS);
+    this.el.penaltyStack.innerHTML = Array.from({ length: chips }, (_, i) =>
+      chipHtml('red', i === chips - 1 ? STRINGS.pendingDraw(v.pendingDraw) : '', i),
+    ).join('');
+    this.el.penaltyLabel.textContent = STRINGS.penaltyLabel(v.pendingDraw);
+
+    // Status line and "it's you" glow.
     this.el.status.textContent = this.statusText(v);
-    this.el.status.classList.toggle('status--yours', myTurn);
+    this.el.status.classList.toggle('game__status--yours', myTurn);
+    this.el.me.classList.toggle('me--active', myTurn);
 
-    // Action buttons
-    this.el.mau.hidden = !rules.mauRequired;
-    this.el.mau.disabled = !myTurn;
-    this.el.mau.classList.toggle('btn--pressed', myTurn && v.mauCalled);
-    this.el.mau.setAttribute('aria-pressed', String(myTurn && v.mauCalled));
+    // Buttons.
     this.el.drawBtn.textContent = v.pendingDraw > 0 ? STRINGS.drawPenalty(v.pendingDraw) : STRINGS.draw;
     this.el.drawBtn.disabled = !canDraw(v);
+    this.el.mau.hidden = !rules.mauRequired;
+    this.el.mau.disabled = !myTurn;
+    this.el.mau.classList.toggle('mau-btn--pressed', myTurn && v.mauCalled);
+    this.el.mau.setAttribute('aria-pressed', String(myTurn && v.mauCalled));
 
     this.renderHand(v, myTurn);
   }
 
   /**
-   * Draws the opponent seats in turn order starting after you.
+   * Creates the opponent seats once, then updates them in place, so bubbles
+   * and stamps aren't cut off by the next update.
    * @param v - current view
    * @returns nothing
    */
-  private renderOpponents(v: VisibleState): void {
+  private renderSeats(v: VisibleState): void {
     const n = v.players.length;
-    const seats: HTMLElement[] = [];
-    for (let k = 1; k < n; k++) {
-      const seat = (v.you + k) % n;
-      const p = v.players[seat];
-      const el = document.createElement('div');
-      el.className = 'seat';
-      el.dataset.seat = String(seat);
-      if (seat === v.current && (v.phase === 'playing' || v.phase === 'drawn')) el.classList.add('seat--active');
-      const online = this.meta.connected[seat] !== false;
-      if (!online) el.classList.add('seat--offline');
+    const order = Array.from({ length: n - 1 }, (_, k) => (v.you + 1 + k) % n);
+    // Positions around the table on wide screens (clockwise from your left).
+    const positions = order.length === 1 ? ['top'] : order.length === 2 ? ['left', 'right'] : ['left', 'top', 'right'];
 
-      const cards = document.createElement('div');
-      cards.className = 'seat__cards';
-      for (let i = 0; i < Math.min(p.cardCount, MAX_SEAT_CARDS); i++) cards.appendChild(createCardEl(null));
-
-      const name = document.createElement('div');
-      name.className = 'seat__name';
-      name.textContent = p.name;
-
-      const count = document.createElement('div');
-      count.className = 'seat__count';
-      count.textContent = online ? STRINGS.cardsLeft(p.cardCount) : `${STRINGS.cardsLeft(p.cardCount)} · ${STRINGS.offlineBadge}`;
-      if (p.cardCount === 1) count.classList.add('seat__count--mau');
-
-      const bubble = document.createElement('span');
-      bubble.className = 'seat__bubble';
-      bubble.textContent = STRINGS.mauButton;
-
-      el.append(cards, name, count, bubble);
-      seats.push(el);
+    if (this.seats.size !== order.length) {
+      this.seats.clear();
+      this.el.opponents.replaceChildren(
+        ...order.map((seat, k) => {
+          const parts = this.buildSeat(seat, positions[k]);
+          this.seats.set(seat, parts);
+          return parts.root;
+        }),
+      );
     }
-    this.el.opponents.replaceChildren(...seats);
+
+    for (const seat of order) {
+      const parts = this.seats.get(seat)!;
+      const p = v.players[seat];
+      const online = this.meta.connected[seat] !== false;
+      parts.root.classList.toggle('seat--active', seat === v.current && (v.phase === 'playing' || v.phase === 'drawn'));
+      parts.root.classList.toggle('seat--offline', !online);
+      parts.count.textContent = String(p.cardCount);
+      parts.count.setAttribute('aria-label', STRINGS.cardsLeft(p.cardCount));
+      parts.status.textContent = online ? '' : STRINGS.offlineBadge;
+      if (parts.name.textContent !== p.name) parts.name.textContent = p.name;
+      parts.avatar.innerHTML = this.avatarFor(seat);
+
+      const shown = Math.min(p.cardCount, MAX_FAN);
+      if (parts.fan.childElementCount !== shown) {
+        parts.fan.replaceChildren(
+          ...Array.from({ length: shown }, (_, i) => {
+            const back = createCardEl(null, 'div', 'card--mini');
+            back.style.setProperty('--fan', `${(i - (shown - 1) / 2) * 7}deg`);
+            return back;
+          }),
+        );
+      }
+    }
+
+    this.placeMarker(v);
+  }
+
+  /**
+   * Builds one opponent seat's elements.
+   * @param seat - seat index
+   * @param pos - where it sits on wide screens (left / top / right)
+   * @returns the seat's parts
+   */
+  private buildSeat(seat: number, pos: string): SeatParts {
+    const root = document.createElement('div');
+    root.className = 'seat';
+    root.dataset.seat = String(seat);
+    root.dataset.pos = pos;
+    root.innerHTML = `
+      <span class="bubble-slot"><span class="bubble"></span></span>
+      <span class="stamp-slot"><span class="stamp">${STRINGS.skipStamp}</span></span>
+      <div class="avatar"></div>
+      <span class="seat__count"></span>
+      <span class="seat__marker"></span>
+      <span class="seat__name"></span>
+      <span class="seat__status"></span>
+      <div class="seat__fan"></div>`;
+    const q = (sel: string) => root.querySelector<HTMLElement>(sel)!;
+    return {
+      root,
+      avatar: q('.avatar'),
+      count: q('.seat__count'),
+      name: q('.seat__name'),
+      status: q('.seat__status'),
+      fan: q('.seat__fan'),
+      marker: q('.seat__marker'),
+      bubble: q('.bubble-slot'),
+      stamp: q('.stamp-slot'),
+    };
+  }
+
+  /**
+   * Avatar markup: animals for bots (in bot order), initials for people.
+   * @param seat - seat index
+   * @returns SVG markup
+   */
+  private avatarFor(seat: number): string {
+    if (this.meta.bots[seat]) {
+      const botIndex = this.meta.bots.slice(0, seat).filter(Boolean).length;
+      return animalAvatar(BOT_ANIMALS[botIndex % BOT_ANIMALS.length]);
+    }
+    return initialAvatar(this.view!.players[seat].name);
+  }
+
+  /**
+   * Puts the turn-marker die next to whoever's turn it is.
+   * @param v - current view
+   * @returns nothing
+   */
+  private placeMarker(v: VisibleState): void {
+    const playing = v.phase === 'playing' || v.phase === 'drawn';
+    const slot = !playing ? null : v.current === v.you ? this.el.meMarker : this.seats.get(v.current)?.marker;
+    if (!slot) {
+      this.marker.remove();
+      return;
+    }
+    if (this.marker.parentElement !== slot) slot.appendChild(this.marker);
   }
 
   /**
@@ -316,16 +440,13 @@ class TableView {
    * @returns nothing
    */
   private renderHand(v: VisibleState, myTurn: boolean): void {
-    this.el.handArea.classList.toggle('hand-area--active', myTurn);
     this.el.hand.replaceChildren(
       ...v.hand.map((card) => {
         const slot = document.createElement('div');
         slot.className = 'hand__slot';
-        const btn = createCardEl(card, 'button') as HTMLButtonElement;
+        const btn = createCardEl(card, 'button', 'card--interactive') as HTMLButtonElement;
         btn.dataset.action = 'play';
         btn.disabled = !myTurn;
-        // Marks the card you just drew, so you can find it in your hand.
-        if (card.id === v.drawnCardId) btn.classList.add('card--drawn');
         slot.appendChild(btn);
         return slot;
       }),
@@ -334,38 +455,39 @@ class TableView {
   }
 
   /**
-   * Spaces and rotates the hand cards to fit the available width.
+   * Spaces and rotates the hand cards to fit the width. Cards overlap more
+   * as the hand grows (no wrapping, no layout shift); past a minimum overlap
+   * the hand scrolls sideways.
    * @returns nothing
    */
   private layoutHand(): void {
     const slots = [...this.el.hand.children] as HTMLElement[];
     const n = slots.length;
     if (n === 0) return;
-    const cardW = slots[0].offsetWidth;
-    const cardH = slots[0].offsetHeight;
-    // Fan: up to 5° per card, total spread capped at ~36°.
-    const spread = Math.min(5, 36 / n);
+    const card = slots[0].firstElementChild as HTMLElement;
+    const cardW = card.offsetWidth;
+    const cardH = card.offsetHeight;
+    // Fan: up to 6° between cards, at most ~36° in total.
+    const spread = Math.min(6, 36 / n);
     const mid = (n - 1) / 2;
-    // The outermost cards rotate around a point 120% down the card (see
-    // .hand__slot transform-origin), so their top corners swing outward by
-    // about 1.2 × height × sin(angle). Keep that much room on each side.
-    const maxAngle = (spread * mid * Math.PI) / 180;
-    const swing = 1.2 * cardH * Math.sin(maxAngle);
-    const avail = this.el.hand.clientWidth - 16 - 2 * swing; // 16 = .hand side padding
-    // Spread cards to fill the width, but never further apart than a small gap.
-    // The 0.18 floor keeps the corner index of each card visible even with a huge hand.
-    const step = n > 1 ? Math.max(cardW * 0.18, Math.min(cardW * 1.08, (avail - cardW) / (n - 1))) : cardW;
+    // Outer cards rotate around a point 130% down the card (see .hand__slot),
+    // so their top corners swing out by about 1.3 × height × sin(angle).
+    const swing = 1.3 * cardH * Math.sin((spread * mid * Math.PI) / 180);
+    const avail = this.el.hand.clientWidth - 24 - 2 * swing; // 24 = .hand side padding
+    // Loose overlap like the reference (≈60% of a card visible) when there's room;
+    // never less than 22% visible so the corner index stays readable.
+    const step = n > 1 ? Math.max(cardW * 0.22, Math.min(cardW * 0.62, (avail - cardW) / (n - 1))) : cardW;
     this.el.hand.style.setProperty('--step', `${step}px`);
     slots.forEach((slot, i) => {
       const offset = i - mid;
-      slot.style.setProperty('--angle', `${offset * spread}deg`);
-      // Push outer cards down a little so the fan curves like held cards.
-      slot.style.setProperty('--drop', `${offset * offset * spread * 0.18}px`);
+      slot.style.setProperty('--fan', `${offset * spread}deg`);
+      // Outer cards sit a little lower, like a hand of cards held up.
+      slot.style.setProperty('--drop', `${offset * offset * spread * 0.22}px`);
     });
   }
 
   /**
-   * The one-line status under the piles.
+   * The one-line status: whose turn, or who won.
    * @param v - current view
    * @returns status text
    */
@@ -384,83 +506,214 @@ class TableView {
   /* ---------------------------- Animation ---------------------------- */
 
   /**
-   * Records where things are on screen before a re-render.
+   * Records where things are before a re-render.
    * @returns the snapshot
    */
   private snapshot(): Snapshot {
-    const hand = new Map<string, DOMRect>();
-    this.el.hand.querySelectorAll<HTMLElement>('.card').forEach((c) => hand.set(c.dataset.cardId!, c.getBoundingClientRect()));
+    const hand = new Map<string, { rect: DOMRect; angle: number }>();
+    this.el.hand.querySelectorAll<HTMLElement>('.hand__slot').forEach((slot) => {
+      const card = slot.firstElementChild as HTMLElement;
+      hand.set(card.dataset.cardId!, {
+        rect: card.getBoundingClientRect(),
+        angle: parseFloat(slot.style.getPropertyValue('--fan')) || 0,
+      });
+    });
     const seats = new Map<number, DOMRect>();
-    this.el.opponents
-      .querySelectorAll<HTMLElement>('.seat')
-      .forEach((s) => seats.set(Number(s.dataset.seat), s.querySelector('.seat__cards')!.getBoundingClientRect()));
-    return { hand, draw: this.el.draw.getBoundingClientRect(), seats };
+    const fanCounts = new Map<number, number>();
+    this.seats.forEach((parts, seat) => {
+      seats.set(seat, parts.avatar.getBoundingClientRect());
+      fanCounts.set(seat, parts.fan.childElementCount);
+    });
+    return {
+      hand,
+      draw: this.el.draw.getBoundingClientRect(),
+      seats,
+      fanCounts,
+      current: this.view ? this.view.current : null,
+    };
   }
 
   /**
    * Animates the changes between the snapshot and the new render.
    * @param before - positions before the update
    * @param events - what happened
-   * @param isNewDeal - whether this is a fresh deal
+   * @param isNewDeal - whether cards were just dealt
    * @returns nothing
    */
   private animate(before: Snapshot, events: GameEvent[], isNewDeal: boolean): void {
     const v = this.view!;
+    const rules = this.conn.rules;
     const handCards = [...this.el.hand.querySelectorAll<HTMLElement>('.card')];
-    const seatRect = (seat: number) =>
-      this.el.opponents.querySelector(`.seat[data-seat="${seat}"] .seat__cards`)?.getBoundingClientRect();
-    const ghostWidth = handCards[0]?.offsetWidth ?? 60;
 
     if (isNewDeal) {
-      // Deal: your cards fly in from the draw pile one by one, opponents get ghost cards.
-      handCards.forEach((card, i) => flyFrom(card, before.draw, { delay: i * STAGGER_MS * v.players.length }));
-      v.players.forEach((p, seat) => {
-        const to = seatRect(seat);
-        if (seat === v.you || !to) return;
-        for (let i = 0; i < Math.min(p.cardCount, 4); i++) {
-          flyGhostCard(before.draw, to, { delay: (i * v.players.length + seat) * STAGGER_MS, width: ghostWidth });
-        }
-      });
+      this.animateDeal(before.draw, handCards);
       return;
     }
 
-    let newCardDelay = 0;
+    let drawDelay = 0;
     for (const e of events) {
-      if (e.type === 'played') {
-        const top = this.el.discard.querySelector<HTMLElement>('.pile__slot--top .card');
-        // Your own card flies from its old spot in your hand; a card that was
-        // drawn and auto-played in the same move was never there, so it comes
-        // from the draw pile.
-        const from = e.seat === v.you ? (before.hand.get(e.card.id) ?? before.draw) : before.seats.get(e.seat);
-        if (top && from) flyFrom(top, from);
-      } else if (e.type === 'drew') {
-        if (e.seat === v.you) {
-          for (const c of e.cards) {
-            const el = handCards.find((h) => h.dataset.cardId === c.id);
-            if (el) flyFrom(el, before.draw, { delay: newCardDelay });
-            newCardDelay += STAGGER_MS;
-          }
-        } else {
-          const to = seatRect(e.seat);
-          for (let i = 0; to && i < Math.min(e.count, 6); i++) {
-            flyGhostCard(before.draw, to, { delay: i * STAGGER_MS, width: ghostWidth });
-          }
+      switch (e.type) {
+        case 'played': {
+          const top = this.el.discard.querySelector<HTMLElement>('.pile__slot--top .card');
+          // Your card flies from its old spot in your hand (or from the draw pile
+          // if it was drawn and auto-played); an opponent's from their avatar.
+          const mine = before.hand.get(e.card.id);
+          const from = e.seat === v.you ? (mine?.rect ?? before.draw) : before.seats.get(e.seat);
+          if (top && from) flyArc(top, from, { fromRotate: e.seat === v.you ? (mine?.angle ?? 0) : 0 });
+
+          if (e.card.rank === '7' && rules.sevenDrawTwo && v.pendingDraw > 0) this.popPenalty();
+          if (isWildJack(e.card, rules) && e.wish) pop(this.el.wishDisc, 380);
+          // Bots gloat when they hit someone with a 7 or an 8.
+          const hits = (e.card.rank === '7' && rules.sevenDrawTwo) || (e.card.rank === '8' && rules.eightSkips);
+          if (hits && this.meta.bots[e.seat]) this.say(e.seat, STRINGS.reactionHa, 450);
+          break;
         }
-      } else if (e.type === 'mau' && e.seat !== v.you) {
-        const seat = this.el.opponents.querySelector<HTMLElement>(`.seat[data-seat="${e.seat}"]`);
-        if (seat) {
-          seat.classList.add('seat--mau');
-          pulse(seat);
-          setTimeout(() => seat.classList.remove('seat--mau'), 1500);
+        case 'drew': {
+          if (e.seat === v.you) {
+            for (const c of e.cards) {
+              const el = handCards.find((h) => h.dataset.cardId === c.id);
+              if (el) flyArc(el, before.draw, { delay: drawDelay });
+              drawDelay += STAGGER_MS;
+            }
+          } else {
+            const fan = this.seats.get(e.seat)?.fan;
+            const added = (fan?.childElementCount ?? 0) - (before.fanCounts.get(e.seat) ?? 0);
+            const backs = fan ? ([...fan.children] as HTMLElement[]).slice(-Math.max(added, Math.min(e.count, 1))) : [];
+            backs.forEach((b, i) => flyArc(b, before.draw, { delay: i * STAGGER_MS, duration: 420 }));
+          }
+          if (e.reason === 'mau') this.mauPenalty(e.seat);
+          if (e.reason === 'seven' && this.meta.bots[e.seat]) this.say(e.seat, STRINGS.reactionOhNo, 300);
+          break;
         }
+        case 'skipped': {
+          stamp(e.seat === v.you ? this.el.meStamp : this.seats.get(e.seat)!.stamp);
+          if (this.meta.bots[e.seat]) this.say(e.seat, STRINGS.reactionOhNo, 900);
+          break;
+        }
+        case 'mau':
+          // Bots always call Mau; only show it when the Mau rule is in play.
+          if (rules.mauRequired) this.say(e.seat, STRINGS.mauButton);
+          break;
+        case 'roundOver': {
+          const pile = this.el.discard.getBoundingClientRect();
+          setTimeout(() => confetti({ x: pile.left + pile.width / 2, y: pile.top + pile.height / 2 }), 450);
+          break;
+        }
+        default:
+          break;
       }
+    }
+
+    // The turn marker rolls over to the next player.
+    if (before.current !== null && before.current !== v.current && this.marker.isConnected) {
+      this.rollMarker(before);
     }
 
     // Cards that stayed in your hand slide to their new spots.
     for (const el of handCards) {
       const old = before.hand.get(el.dataset.cardId!);
-      if (old) flyFrom(el, old, { duration: 250 });
+      if (old) {
+        const now = el.getBoundingClientRect();
+        const dx = old.rect.left - now.left;
+        const dy = old.rect.top - now.top;
+        if (Math.abs(dx) + Math.abs(dy) > 1) {
+          el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], {
+            duration: 260,
+            easing: 'cubic-bezier(.2,.8,.2,1)',
+          });
+        }
+      }
     }
+  }
+
+  /**
+   * Deal: cards fly from the draw pile, round by round, to every player.
+   * @param from - draw pile position
+   * @param handCards - your new hand's card elements
+   * @returns nothing
+   */
+  private animateDeal(from: DOMRect, handCards: HTMLElement[]): void {
+    const v = this.view!;
+    const n = v.players.length;
+    let maxDelay = 0;
+    // Deal order: one card at a time around the table, starting after you.
+    for (let round = 0; round < Math.max(MAX_FAN, handCards.length); round++) {
+      for (let k = 1; k <= n; k++) {
+        const seat = (v.you + k) % n;
+        const delay = (round * n + k - 1) * STAGGER_MS;
+        if (seat === v.you) {
+          if (handCards[round]) flyArc(handCards[round], from, { delay });
+        } else {
+          const back = this.seats.get(seat)?.fan.children[round] as HTMLElement | undefined;
+          if (back) flyArc(back, from, { delay, duration: 420 });
+        }
+        maxDelay = Math.max(maxDelay, delay);
+      }
+    }
+    // Finally the starting card is turned up.
+    const top = this.el.discard.querySelector<HTMLElement>('.pile__slot--top .card');
+    if (top) flyArc(top, from, { delay: maxDelay + STAGGER_MS * 2 });
+  }
+
+  /**
+   * Moves the die from the previous player's seat to the new one, rolling it.
+   * @param before - snapshot with the previous player
+   * @returns nothing
+   */
+  private rollMarker(before: Snapshot): void {
+    const v = this.view!;
+    const fromSeat = before.current!;
+    const fromRect = fromSeat === v.you ? this.el.meMarker.getBoundingClientRect() : before.seats.get(fromSeat);
+    this.marker.innerHTML = dieHtml(1 + Math.floor(Math.random() * 6));
+    if (fromRect) flyArc(this.marker, fromRect, { fromRotate: -180, duration: 480 });
+  }
+
+  /**
+   * The 7-penalty stack grows: new chips pop in and a "+2" bubble appears.
+   * @returns nothing
+   */
+  private popPenalty(): void {
+    const chips = [...this.el.penaltyStack.children];
+    chips.slice(-2).forEach((chip, i) => pop(chip, i * 90));
+    this.el.penaltyBubble.textContent = STRINGS.pendingDraw(2);
+    this.el.penaltyBubble.getAnimations().forEach((a) => a.cancel());
+    flash(this.el.penaltyBubble, 700);
+  }
+
+  /**
+   * Forgot to say Mau: the player's cards shake and an opponent teases them.
+   * @param seat - the penalized seat
+   * @returns nothing
+   */
+  private mauPenalty(seat: number): void {
+    const v = this.view!;
+    shake(seat === v.you ? this.el.hand : this.seats.get(seat)!.root);
+    // The tease comes from the next opponent after the penalized player (not you).
+    const n = v.players.length;
+    for (let k = 1; k < n; k++) {
+      const teaser = (seat + k) % n;
+      if (teaser !== v.you && teaser !== seat) {
+        this.say(teaser, STRINGS.cheekyMau, 350);
+        return;
+      }
+    }
+  }
+
+  /**
+   * Shows a speech bubble above a player (or above your hand).
+   * @param seat - who speaks
+   * @param text - what they say
+   * @param delay - wait before showing, in ms
+   * @returns nothing
+   */
+  private say(seat: number, text: string, delay = 0): void {
+    const slot = seat === this.view!.you ? this.el.meBubble : this.seats.get(seat)?.bubble;
+    if (!slot) return;
+    setTimeout(() => {
+      slot.firstElementChild!.textContent = text;
+      slot.getAnimations().forEach((a) => a.cancel());
+      flash(slot, BUBBLE_HOLD_MS);
+    }, delay);
   }
 
   /* ---------------------------- Input ---------------------------- */
@@ -530,50 +783,56 @@ class TableView {
   }
 
   /**
-   * Opens the "Ich wünsche mir…" dialog.
-   * @param cancellable - false hides Cancel and blocks Escape (for a drawn Bube)
-   * @returns the chosen suit, or null if cancelled
+   * Opens the suit picker: four tokens fan out of the middle.
+   * @param cancellable - false hides Cancel and ignores Escape (for a drawn Bube)
+   * @returns the chosen suit, or null if cancelled / closed
    */
   private pickSuit(cancellable = true): Promise<Suit | null> {
-    const dialog = this.el.suitDialog;
-    (dialog.querySelector('[data-suit=""]') as HTMLElement).hidden = !cancellable;
+    const overlay = this.el.pickerOverlay;
+    this.el.pickerCancel.hidden = !cancellable;
+    overlay.hidden = false;
+    // Open on the next frame so the fan-out transition starts from the stacked state.
+    requestAnimationFrame(() => requestAnimationFrame(() => this.el.picker.classList.add('suit-picker--open')));
+    (overlay.querySelector('.suit-token') as HTMLElement).focus({ preventScroll: true });
+
     return new Promise((resolve) => {
-      const onClick = (e: MouseEvent) => {
-        const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-suit]');
-        if (!btn) return;
-        finish((btn.dataset.suit || null) as Suit | null);
-      };
       const finish = (suit: Suit | null) => {
-        dialog.removeEventListener('click', onClick);
-        dialog.removeEventListener('close', onClose);
-        dialog.removeEventListener('cancel', onCancel);
-        if (dialog.open) dialog.close();
+        overlay.removeEventListener('click', onClick);
+        document.removeEventListener('keydown', onKey);
+        this.el.picker.classList.remove('suit-picker--open');
+        overlay.hidden = true;
+        this.closePicker = null;
         resolve(suit);
       };
-      const onClose = () => finish(null);
-      // Escape fires "cancel"; block it when a suit must be chosen.
-      const onCancel = (e: Event) => {
-        if (!cancellable) e.preventDefault();
+      const onClick = (e: MouseEvent) => {
+        const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-suit]');
+        if (btn) finish((btn.dataset.suit || null) as Suit | null);
+        else if (cancellable && e.target === overlay) finish(null); // tap outside = cancel
       };
-      dialog.addEventListener('click', onClick);
-      dialog.addEventListener('close', onClose);
-      dialog.addEventListener('cancel', onCancel);
-      dialog.showModal();
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && cancellable) finish(null);
+      };
+      overlay.addEventListener('click', onClick);
+      document.addEventListener('keydown', onKey);
+      this.closePicker = () => finish(null);
     });
   }
 
-  /* ---------------------------- Round over ---------------------------- */
+  /** Closes an open suit picker (used when leaving or when the host leaves). */
+  private closePicker: (() => void) | null = null;
+
+  /* ---------------------------- End of round ---------------------------- */
 
   /**
-   * Shows the round (or match) result with points and the next-step buttons.
+   * Shows the end-of-round (or match) screen with everyone's points as chips.
    * @returns nothing
    */
-  private showRoundDialog(): void {
+  private showRoundPanel(): void {
+    this.roundPanelTimer = null;
     const v = this.view;
     if (!v || (v.phase !== 'roundOver' && v.phase !== 'matchOver')) return;
     const scoring = this.conn.rules.scoring;
     const winner = v.roundWinner ?? 0;
-    const dialog = this.el.roundDialog;
     const matchOver = v.phase === 'matchOver';
     const headline = matchOver
       ? STRINGS.matchWinner(
@@ -582,58 +841,59 @@ class TableView {
         )
       : STRINGS.roundWinner(v.players[winner].name, winner === v.you);
 
-    dialog.innerHTML = `
-      <h2>${STRINGS.mauMau}</h2>
-      <p class="round-over__headline"></p>
-      <table class="scores">
-        <thead><tr><th></th><th>${STRINGS.pointsThisRound}</th>${scoring ? `<th>${STRINGS.pointsTotal}</th>` : ''}</tr></thead>
-        <tbody></tbody>
-      </table>
-      ${this.conn.canControlRounds ? '' : `<p class="round-over__wait">${STRINGS.waitingForHostNext}</p>`}
-      <div class="dialog__buttons">
-        ${this.conn.canControlRounds ? `<button type="button" class="btn btn--primary" data-next>${matchOver ? STRINGS.newMatch : STRINGS.nextRound}</button>` : ''}
+    const panel = this.el.roundPanel;
+    panel.innerHTML = `
+      <div class="end-panel__title">${STRINGS.mauMau}</div>
+      <p class="end-panel__headline"></p>
+      <div class="end-panel__rows"></div>
+      ${this.conn.canControlRounds ? '' : `<p class="end-panel__wait">${STRINGS.waitingForHostNext}</p>`}
+      <div class="end-panel__buttons">
+        ${this.conn.canControlRounds ? `<button type="button" class="btn btn--primary btn--big" data-next>${matchOver ? STRINGS.newMatch : STRINGS.nextRound}</button>` : ''}
         <button type="button" class="btn" data-leave>${STRINGS.backToMenu}</button>
       </div>`;
-    dialog.querySelector('.round-over__headline')!.textContent = headline;
+    panel.querySelector('.end-panel__headline')!.textContent = headline;
 
-    // Player names are user input, so rows are built with textContent.
-    const body = dialog.querySelector('tbody')!;
-    v.players.forEach((p, seat) => {
-      const row = document.createElement('tr');
-      if (seat === winner) row.className = 'scores__winner';
-      const cells = [seat === v.you ? `${p.name} (${STRINGS.you})` : p.name, String(v.lastRoundPoints?.[seat] ?? 0)];
-      if (scoring) cells.push(String(v.scores[seat]));
-      for (const text of cells) {
-        const td = document.createElement('td');
-        td.textContent = text;
-        row.appendChild(td);
-      }
-      body.appendChild(row);
-    });
+    // Rows from best to worst; names are user input, so they go in via textContent.
+    const points = v.lastRoundPoints ?? v.players.map(() => 0);
+    const seatsByScore = v.players.map((_, s) => s).sort((a, b) => (scoring ? v.scores[a] - v.scores[b] : points[a] - points[b]));
+    const rows = panel.querySelector('.end-panel__rows')!;
+    for (const seat of seatsByScore) {
+      const row = document.createElement('div');
+      row.className = `score-row ${seat === winner ? 'score-row--winner' : ''}`;
+      row.innerHTML = `<div class="avatar">${this.avatarFor(seat)}</div><span class="score-row__name"></span>
+        <span class="score-row__points"><span class="chips-inline">${chipsFor(points[seat])}</span><span>${points[seat]}</span>${
+          scoring ? `<span class="score-row__total">${STRINGS.pointsTotal} ${v.scores[seat]}</span>` : ''
+        }</span>`;
+      row.querySelector('.score-row__name')!.textContent = seat === v.you ? `${v.players[seat].name} (${STRINGS.you})` : v.players[seat].name;
+      rows.appendChild(row);
+    }
 
-    dialog.querySelector('[data-next]')?.addEventListener('click', () => {
-      this.closeRoundDialog();
+    panel.querySelector('[data-next]')?.addEventListener('click', () => {
+      this.closeRoundPanel();
       if (matchOver) this.conn.newMatch();
       else this.conn.nextRound();
     });
-    dialog.querySelector('[data-leave]')!.addEventListener('click', () => this.leave());
-    dialog.showModal();
+    panel.querySelector('[data-leave]')!.addEventListener('click', () => this.leave());
+
+    this.el.roundOverlay.hidden = false;
+    pop(panel);
+    panel.querySelectorAll('.chips-inline .chip').forEach((chip, i) => pop(chip, 250 + i * 50));
   }
 
   /**
-   * Closes the result dialog and cancels a pending one.
+   * Hides the end-of-round screen and cancels a pending one.
    * @returns nothing
    */
-  private closeRoundDialog(): void {
-    if (this.roundDialogTimer) clearTimeout(this.roundDialogTimer);
-    this.roundDialogTimer = null;
-    if (this.el.roundDialog.open) this.el.roundDialog.close();
+  private closeRoundPanel(): void {
+    if (this.roundPanelTimer) clearTimeout(this.roundPanelTimer);
+    this.roundPanelTimer = null;
+    this.el.roundOverlay.hidden = true;
   }
 
   /* ---------------------------- Connection notices ---------------------------- */
 
   /**
-   * Shows a banner while reconnecting, or a dialog when the host left.
+   * Shows a banner while reconnecting, or a panel when the host left.
    * @param notice - current connection notice
    * @returns nothing
    */
@@ -641,9 +901,10 @@ class TableView {
     this.el.notice.hidden = notice !== 'reconnecting';
     this.el.notice.textContent = notice === 'reconnecting' ? STRINGS.reconnecting : '';
     if (notice === 'hostLeft') {
-      this.closeRoundDialog();
-      if (this.el.suitDialog.open) this.el.suitDialog.close();
-      if (!this.el.hostLeftDialog.open) this.el.hostLeftDialog.showModal();
+      this.closeRoundPanel();
+      this.closePicker?.();
+      this.el.hostLeftOverlay.hidden = false;
+      pop(this.el.hostLeftOverlay.firstElementChild!);
     }
   };
 
@@ -660,8 +921,8 @@ class TableView {
    * @returns nothing
    */
   private leave(): void {
-    this.closeRoundDialog();
-    if (this.el.hostLeftDialog.open) this.el.hostLeftDialog.close();
+    this.closeRoundPanel();
+    this.closePicker?.();
     this.unsubscribe();
     this.unsubscribeNotice();
     this.conn.close();
@@ -672,13 +933,13 @@ class TableView {
 }
 
 /**
- * A small, stable rotation for a card on the discard pile (same card → same tilt),
- * so the pile looks hand-thrown without jumping around on re-render.
+ * A small, stable tilt for a card on the discard pile (same card → same
+ * angle), so the pile looks hand-thrown without jumping around on re-render.
  * @param id - card id
- * @returns angle in degrees between -8 and 8
+ * @returns angle in degrees between -3 and 3
  */
 function tiltFor(id: string): number {
   let h = 0;
   for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) | 0;
-  return (Math.abs(h) % 17) - 8;
+  return (Math.abs(h) % 61) / 10 - 3;
 }

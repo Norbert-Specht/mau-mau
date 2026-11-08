@@ -199,25 +199,6 @@ body {
   left: 18px;
 }
 
-/* Your hand: loose overlapping fan. --fan/--drop are set per card in JS. */
-.hand {
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  padding: var(--space-5) var(--space-3) var(--space-5);
-  min-height: calc(var(--card-w) * 1.4 + 48px); /* fixed height: no layout shift as cards change */
-}
-
-.hand__slot {
-  flex: none;
-  transform-origin: 50% 130%;
-  transform: translateY(var(--drop, 0)) rotate(var(--fan, 0deg));
-}
-
-.hand__slot + .hand__slot {
-  margin-left: calc(var(--card-w) * -0.42); /* loose overlap like the reference */
-}
-
 /* Mau! button sits bottom-right, within thumb reach, above the hand. */
 .scene__mau {
   position: absolute;
@@ -230,7 +211,7 @@ body {
   position: absolute;
   left: 50%;
   bottom: calc(var(--card-w) * 1.4 + 70px);
-  transform: translateX(-50%);
+  translate: -50% 0; /* keeps centring while flash() animates transform */
   z-index: 2;
   opacity: 0;
 }
@@ -238,59 +219,6 @@ body {
 .scene__mau-bubble,
 .seat .bubble-slot {
   pointer-events: none;
-}
-
-/* Turn marker die tucked against the active avatar's top-left. */
-.seat__marker {
-  position: absolute;
-  left: -2px;
-  top: 2px;
-  z-index: 2;
-}
-
-.seat__marker .die {
-  --size: 26px;
-}
-
-/* Reaction bubbles float above the avatar. */
-.seat .bubble-slot {
-  position: absolute;
-  bottom: calc(100% - 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 3;
-  opacity: 0;
-}
-
-.seat .stamp-slot {
-  position: absolute;
-  top: 18px;
-  left: 50%;
-  margin-left: -36px;
-  z-index: 3;
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* Penalty chips + "+2" bubble. */
-.penalty {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-}
-
-.penalty__bubble {
-  position: absolute;
-  bottom: calc(100% + 18px);
-  left: 50%;
-  transform: translateX(-50%);
-  opacity: 0;
-}
-
-.penalty__label {
-  font: 600 var(--text-xs) / 1 var(--font-display);
-  color: var(--on-felt-muted);
 }
 
 /* ---------------------------- Demo areas ---------------------------- */
@@ -314,43 +242,6 @@ body {
   justify-content: center;
   gap: var(--space-6);
   min-height: 220px;
-}
-
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: grid;
-  place-items: center;
-  padding: var(--space-4);
-  background: rgba(6, 18, 24, 0.55);
-}
-
-.overlay[hidden] {
-  display: none;
-}
-
-.end-panel {
-  width: min(380px, 100%);
-  text-align: center;
-}
-
-.end-panel .display {
-  font: 700 var(--text-2xl) / 1 var(--font-display);
-  color: var(--suit-red);
-}
-
-.end-panel .score-row {
-  text-align: left;
-}
-
-.chips-inline {
-  display: flex;
-  gap: 2px;
-}
-
-.chips-inline .chip {
-  --chip-size: 26px;
 }
 
 /* ---------------------------- Menus preview ---------------------------- */

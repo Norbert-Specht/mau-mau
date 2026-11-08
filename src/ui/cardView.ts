@@ -1,6 +1,7 @@
 /* ==========================================================================
    Card elements
-   Builds DOM elements for card faces and backs using the Kenney PNGs.
+   Paper cards (see .card in theme/components.css): the Kenney face sits
+   inside, cropped to its pips; backs use the seigaiha SVG.
    ========================================================================== */
 
 import type { Card, Rank } from '../engine';
@@ -24,7 +25,7 @@ const RANK_FILE: Record<Rank, string> = {
  * @returns image URL
  */
 export function cardImageUrl(card: Card | null): string {
-  const file = card ? `card_${card.suit}_${RANK_FILE[card.rank]}.png` : 'card_back.png';
+  const file = card ? `card_${card.suit}_${RANK_FILE[card.rank]}.png` : 'back-seigaiha.svg';
   return `${import.meta.env.BASE_URL}cards/${file}`;
 }
 
@@ -32,13 +33,17 @@ export function cardImageUrl(card: Card | null): string {
  * Creates a card element. Faces get an accessible label; backs are decorative.
  * @param card - the card, or null for a face-down card
  * @param tag - element type: 'div' for display, 'button' for clickable hand cards
+ * @param extraClass - extra classes (e.g. "card--mini")
  * @returns the element (class "card")
  */
-export function createCardEl(card: Card | null, tag: 'div' | 'button' = 'div'): HTMLElement {
+export function createCardEl(card: Card | null, tag: 'div' | 'button' = 'div', extraClass = ''): HTMLElement {
   const el = document.createElement(tag);
-  el.className = card ? 'card' : 'card card--back';
-  el.style.backgroundImage = `url("${cardImageUrl(card)}")`;
+  el.className = `card ${card ? '' : 'card--back'} ${extraClass}`.trim().replace(/\s+/g, ' ');
   if (card) {
+    const face = document.createElement('span');
+    face.className = 'card__face';
+    face.style.backgroundImage = `url("${cardImageUrl(card)}")`;
+    el.appendChild(face);
     el.dataset.cardId = card.id;
     el.setAttribute('aria-label', cardLabel(card));
     if (tag === 'div') el.setAttribute('role', 'img');

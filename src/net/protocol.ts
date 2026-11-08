@@ -45,6 +45,8 @@ export type HostMessage =
       events: GameEvent[];
       isNewDeal: boolean;
       connected: boolean[];
+      /** bots[seat]: true for bot seats (display only: avatars and reactions). */
+      bots: boolean[];
       rules: Rules;
     }
   /** Host is closing the room on purpose. */

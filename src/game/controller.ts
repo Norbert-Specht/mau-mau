@@ -2,7 +2,7 @@
    Game controller
    Owns the authoritative GameState for a table, applies moves through the
    engine, and plays the bots' turns after a short delay. The UI subscribes
-   to updates. In step 3 the multiplayer host will reuse this same class.
+   to updates. The multiplayer host reuses this same class.
    ========================================================================== */
 
 import { chooseMove, type Difficulty } from '../bot/bot';
@@ -36,6 +36,8 @@ export type UpdateListener = (state: GameState, events: GameEvent[], isNewDeal: 
 export class GameController {
   state: GameState;
   readonly rules: Rules;
+  /** botSeats[seat]: true for bots (the table shows animal avatars for them). */
+  readonly botSeats: boolean[];
   private readonly seats: SeatConfig[];
   private listeners: UpdateListener[] = [];
   private botTimer: ReturnType<typeof setTimeout> | null = null;
@@ -50,6 +52,7 @@ export class GameController {
   constructor(seats: SeatConfig[], rules: Rules, seed: number) {
     this.seats = seats;
     this.rules = rules;
+    this.botSeats = seats.map((s) => s.kind === 'bot');
     this.state = createGame(
       seats.map((s) => ({ id: s.id, name: s.name })),
       rules,

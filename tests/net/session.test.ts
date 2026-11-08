@@ -203,6 +203,19 @@ describe('host and guest sessions', () => {
     expect(drew).toMatchObject({ seat: 0, count: 1, cards: [] });
   });
 
+  it('tells guests and the host which seats are bots', async () => {
+    const a = joinGuest(net, 'room1', 'secret-a', 'Ali');
+    await flush();
+    host.addBot('easy');
+    const hostBots: boolean[][] = [];
+    host.hostConnection().subscribe((_v, _e, _d, meta) => hostBots.push(meta.bots));
+    host.start();
+    const guestBots: boolean[][] = [];
+    a.guest.tableConnection().subscribe((_v, _e, _d, meta) => guestBots.push(meta.bots));
+    expect(hostBots.at(-1)).toEqual([false, false, true]);
+    expect(guestBots.at(-1)).toEqual([false, false, true]);
+  });
+
   it('runs bot turns on the host and shows them to guests', async () => {
     const a = joinGuest(net, 'room1', 'secret-a', 'Ali');
     await flush();

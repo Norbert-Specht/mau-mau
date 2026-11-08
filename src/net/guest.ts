@@ -218,7 +218,8 @@ export class GuestSession {
         break;
       case 'state': {
         this.rules = msg.rules;
-        const meta = { connected: msg.connected };
+        // Older hosts don't send bots: treat every seat as human then.
+        const meta = { connected: msg.connected, bots: msg.bots ?? msg.connected.map(() => false) };
         this.latest = { view: msg.view, events: msg.events, isNewDeal: msg.isNewDeal, meta };
         if (this.status.kind !== 'playing') this.setStatus({ kind: 'playing' });
         else this.viewListeners.forEach((l) => l(msg.view, msg.events, msg.isNewDeal, meta));

@@ -1,0 +1,290 @@
+/* ==========================================================================
+   Menu screens (start, lobby, join, messages): panels and chips on the felt.
+   ========================================================================== */
+
+/* ---------------------------- Screen ---------------------------- */
+.menu {
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4) var(--space-7);
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  font-family: var(--font-body);
+}
+
+/* Big buttons fill the column in menus, like playing cards on a table. */
+.menu .btn--big,
+.menu > .btn--ghost {
+  width: 100%;
+}
+
+.menu__header {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.menu-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font: 700 var(--text-2xl) / 1 var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Two little fanned cards next to the title. */
+.menu-logo__cards {
+  display: flex;
+}
+
+.menu-logo__cards .card {
+  --w: 34px;
+  transform: rotate(-8deg);
+}
+
+.menu-logo__cards .card + .card {
+  margin-left: -16px;
+  transform: rotate(9deg) translateY(2px);
+}
+
+.menu__tagline {
+  margin: 0;
+  color: var(--on-felt-muted);
+  font-size: var(--text-sm);
+}
+
+.menu__form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.menu__section {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.menu__section > h2 {
+  margin: 0;
+  font: 600 var(--text-lg) / 1.2 var(--font-display);
+}
+
+.menu__hint {
+  margin: 0;
+  min-height: 1.4em;
+  text-align: center;
+  color: var(--on-felt-muted);
+}
+
+.menu__message p {
+  margin: 0;
+  font: 600 var(--text-lg) / 1.4 var(--font-display);
+}
+
+/* ---------------------------- Name field ---------------------------- */
+.name-field {
+  display: grid;
+  gap: var(--space-1);
+  font: 600 var(--text-sm) / 1.2 var(--font-display);
+}
+
+.name-field input {
+  min-height: var(--tap-min);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--card-face);
+  color: var(--paper-ink);
+  font: 600 var(--text-md) / 1 var(--font-body);
+  box-shadow: var(--shadow-inset);
+}
+
+.name-field input:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---------------------------- Mode cards ---------------------------- */
+.mode-card {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.mode-card h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.mode-card p {
+  margin: 0;
+  color: var(--panel-muted);
+  font-size: var(--text-sm);
+}
+
+.menu__group {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.menu__group legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font: 600 var(--text-sm) / 1.2 var(--font-display);
+  color: var(--panel-muted);
+}
+
+.is-disabled {
+  opacity: 0.45;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ---------------------------- Chip radios ---------------------------- */
+/* Numbers as chips: the chosen one is bright and lifted off the felt. */
+.chip-radio {
+  display: inline-block;
+  cursor: pointer;
+}
+
+.chip-radio input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chip-radio .chip {
+  --chip-size: 44px; /* a comfortable touch target */
+  opacity: 0.45;
+  transition: opacity var(--dur-fast), transform var(--dur-base) var(--ease-bounce);
+}
+
+.chip-radio input:checked + .chip {
+  opacity: 1;
+  transform: translateY(-4px);
+}
+
+.chip-radio input:focus-visible + .chip {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.btn--navy {
+  --btn-bg: var(--chip-navy);
+  --btn-ink: #fff;
+}
+
+/* ---------------------------- Rules drawer ---------------------------- */
+.rules-drawer {
+  border-radius: var(--radius-lg);
+  background: rgba(10, 28, 36, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.rules-drawer > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 0 var(--space-4);
+  font: 600 var(--text-md) / 1 var(--font-display);
+  cursor: pointer;
+  list-style: none;
+}
+
+.rules-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.rules-drawer > summary::after {
+  content: '▾';
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.rules-drawer[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.rules-drawer__body {
+  display: grid;
+  gap: var(--space-4);
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.rules-drawer .menu__group legend {
+  color: var(--on-felt-muted);
+}
+
+/* ---------------------------- Lobby ---------------------------- */
+.seat-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.seat-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.seat-line--offline {
+  opacity: 0.55;
+}
+
+.seat-line .avatar {
+  --avatar-size: 38px;
+}
+
+.seat-line__name {
+  font: 600 var(--text-md) / 1.2 var(--font-display);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.seat-line small {
+  margin-left: auto;
+  font: 600 var(--text-xs) / 1.2 var(--font-body);
+  color: var(--on-felt-muted);
+  white-space: nowrap;
+}
+
+.seat-line__remove {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--on-felt);
+  font: 600 var(--text-lg) / 1 var(--font-display);
+  cursor: pointer;
+}
+
+.add-bot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ticket {
+  width: 100%;
+  max-width: none;
+}

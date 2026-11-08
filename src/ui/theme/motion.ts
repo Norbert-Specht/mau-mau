@@ -161,13 +161,14 @@ export function shake(el: Element): Animation {
  */
 export function stamp(el: Element): Animation {
   if (reducedMotion()) return flash(el, 700);
+  // Scale only: the .stamp inside already carries its -12° tilt.
   return el.animate(
     [
-      { transform: 'rotate(-12deg) scale(2.4)', opacity: 0 },
-      { offset: 0.18, transform: 'rotate(-12deg) scale(0.92)', opacity: 1, easing: 'ease-out' },
-      { offset: 0.26, transform: 'rotate(-12deg) scale(1)', opacity: 1 },
-      { offset: 0.8, transform: 'rotate(-12deg) scale(1)', opacity: 1 },
-      { transform: 'rotate(-12deg) scale(1)', opacity: 0 },
+      { transform: 'scale(2.4)', opacity: 0 },
+      { offset: 0.18, transform: 'scale(0.92)', opacity: 1, easing: 'ease-out' },
+      { offset: 0.26, transform: 'scale(1)', opacity: 1 },
+      { offset: 0.8, transform: 'scale(1)', opacity: 1 },
+      { transform: 'scale(1)', opacity: 0 },
     ],
     { duration: 1300, fill: 'both' },
   );

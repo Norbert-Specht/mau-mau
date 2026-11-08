@@ -12,6 +12,8 @@ import type { GameController } from './controller';
 export interface TableMeta {
   /** connected[seat]: false while a human player is offline. Bots are always connected. */
   connected: boolean[];
+  /** bots[seat]: true if the seat is played by a bot (animal avatar, reactions). */
+  bots: boolean[];
 }
 
 /** Receives the viewer's state, the (redacted) events that led to it, and whether cards were just dealt. */
@@ -51,7 +53,7 @@ export function localConnection(controller: GameController, playerId: string): T
     subscribe(listener) {
       return controller.subscribe((state, events, isNewDeal) => {
         const view = getVisibleState(state, playerId);
-        const meta = { connected: state.players.map(() => true) };
+        const meta = { connected: state.players.map(() => true), bots: controller.botSeats };
         listener(view, redactEvents(events, view.you), isNewDeal, meta);
       });
     },

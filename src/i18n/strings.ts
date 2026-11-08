@@ -83,6 +83,15 @@ export const STRINGS = {
   pendingDraw: (n: number) => `+${n}`,
   roundLabel: (round: number, total: number | null) => (total ? `Round ${round} / ${total}` : `Round ${round}`),
 
+  /* ---- Table moments (bubbles, stamps) ---- */
+  skipStamp: 'Aussetzen!',
+  reactionHa: 'Ha!',
+  reactionOhNo: 'Oh nein…',
+  cheekyMau: 'Mau vergessen! 😜',
+  penaltyLabel: (n: number) => `draw ${n}`,
+  soundOn: 'Sound on',
+  soundOff: 'Sound off',
+
   /* ---- Suit picker ---- */
   pickSuitTitle: 'Ich wünsche mir…',
   cancel: 'Cancel',
