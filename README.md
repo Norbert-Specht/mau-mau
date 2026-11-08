@@ -13,7 +13,7 @@ Play against 1–3 bots or with friends over a shared link — no accounts, no b
 | 2 | Local game vs. bots with Kenney card art | ✅ done |
 | 3 | PeerJS multiplayer with shared links | ✅ done |
 | 4 | Vercel deployment (auto-deploy from `main`) | ✅ done |
-| 5 | UI redesign: felt table, design tokens, motion, sounds | ✅ on branch `redesign` (preview) |
+| 5 | UI redesign: felt table, design tokens, motion, sounds | ✅ done |
 
 ## Setup
 
@@ -109,7 +109,7 @@ Things to know:
 
 The look is a tabletop seen from slightly above: slate-teal felt with a fabric grain and a wooden rim, paper cards with soft shadows, casino chips and a red die as props. Reference: `docs/reference.png`.
 
-- **Style guide:** `/design` (e.g. https://mau-mau-three.vercel.app/design/ once merged) shows every component in day and night, with live motion and sound demos.
+- **Style guide:** `/design` (https://mau-mau-three.vercel.app/design/) shows every component in day and night, with live motion and sound demos.
 - **Design tokens** live in one file, `src/ui/theme/tokens.css`: colors, type, radii, shadows, spacing and motion timings. The "night table" variant (deeper felt, warm lamp glow) follows the system's dark mode.
 - **Fonts:** Fredoka (headings, names, buttons) and Nunito (small text) from Google Fonts; system fonts are used offline.
 - **Motion:** Web Animations API, only `transform`/`opacity` (smooth on phones). Cards fly along arcs with a small landing bounce. With *reduce motion* switched on in the system, flights and bounces become short fades.
