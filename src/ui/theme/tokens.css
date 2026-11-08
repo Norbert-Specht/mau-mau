@@ -1,0 +1,199 @@
+/* ==========================================================================
+   Design tokens — the single source for colors, type, radii, shadows,
+   spacing and motion. Day table by default; "night table" follows
+   prefers-color-scheme, and any element can force a theme with
+   data-theme="light" | "dark" (used by the /design gallery).
+
+   Palette sampled from docs/reference.png:
+   felt #3c7a90, felt shadow #2d6375, card face #fbf9f7, chip red #bb2e30,
+   die red #9d3731, wood #c58451 → #7f5629.
+   ========================================================================== */
+
+/* ---------------------------- Fonts ---------------------------- */
+/* Loaded in the HTML <head> from Google Fonts; system fonts are the fallback
+   (e.g. offline games against bots). */
+
+/* ---------------------------- Day table (default) ---------------------------- */
+:root,
+[data-theme='light'] {
+  /* Felt surface */
+  --felt: #3c7a90;
+  --felt-deep: #2d6375; /* reference shadow color; used at the vignette edges */
+  --felt-light: #4b8aa0;
+  /* Vignette: soft darkening toward the edges, like light falling off a table. */
+  --vignette-edge: rgba(16, 40, 52, 0.45);
+  /* Night only: warm lamp glow in the middle. Transparent by day. */
+  --lamp: rgba(255, 214, 150, 0);
+  /* Fabric texture strength (opacity of the noise overlay). */
+  --felt-grain: 0.07;
+
+  /* Wooden rim */
+  --wood-light: #c58451;
+  --wood-mid: #a06535;
+  --wood-dark: #6b4220;
+
+  /* Cards */
+  --card-face: #fbf9f7; /* slightly warm off-white, sampled from the reference */
+  --card-edge: rgba(60, 50, 40, 0.14);
+  --suit-red: #e5394f;
+  --suit-black: #2f3437;
+  --back-ink: #2b3d6b; /* seigaiha navy */
+  --back-paper: #f7f5f0;
+
+  /* Props */
+  --chip-red: #bb2e30;
+  --chip-green: #2f7d55;
+  --chip-navy: #27324a;
+  --chip-white: #f3f5f7;
+  --chip-white-ink: #4f7fa3;
+  --chip-stripe: #ffffff;
+  --die: #9d3731;
+  --die-side: #7a2924;
+  --die-pip: #ffffff;
+
+  /* Text and surfaces */
+  --on-felt: #f2f8fa;
+  --on-felt-muted: rgba(242, 248, 250, 0.72);
+  --panel: #fbf9f6;
+  --panel-ink: #1d2a30;
+  --panel-muted: #5f6f76;
+  --panel-line: rgba(29, 42, 48, 0.12);
+  --bubble: #ffffff;
+  --bubble-ink: #1d2a30;
+  --paper-ink: #1d2a30; /* text printed on card-colored paper (badges, tokens) in both themes */
+
+  /* Accents */
+  --accent: #ffd166; /* warm gold: active seat glow, turn marker highlight */
+  --accent-ink: #3a2a00;
+  --mau: #ffb703; /* the big Mau! button */
+  --mau-ink: #3a2400;
+  --danger: #e5484d; /* penalties, skip stamp */
+  --success: #3fb37f;
+  --focus: #ffe08a;
+
+  /* Shadows — light comes from the top-left, so shadows fall down-right
+     (matches the reference). Layered: contact + soft + ambient. */
+  --shadow-card: 0.5px 1px 0 rgba(0, 0, 0, 0.08), 2px 4px 6px rgba(10, 34, 44, 0.2),
+    6px 12px 20px rgba(10, 34, 44, 0.16);
+  --shadow-card-lifted: 0.5px 1px 0 rgba(0, 0, 0, 0.06), 6px 12px 14px rgba(10, 34, 44, 0.22),
+    14px 26px 34px rgba(10, 34, 44, 0.2);
+  --shadow-prop: 1px 2px 0 rgba(0, 0, 0, 0.18), 3px 6px 10px rgba(10, 34, 44, 0.3);
+  --shadow-panel: 0 2px 4px rgba(10, 34, 44, 0.12), 0 14px 40px rgba(10, 34, 44, 0.28);
+  --shadow-inset: inset 0 2px 4px rgba(0, 0, 0, 0.25);
+
+  /* Typography */
+  --font-display: 'Fredoka', 'Baloo 2', ui-rounded, 'Arial Rounded MT Bold', system-ui, sans-serif;
+  --font-body: 'Nunito', ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.5rem;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+  --radius-card: 9%; /* relative to card width, so small and big cards look alike */
+
+  /* Spacing (4px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Sizes */
+  --card-w: clamp(56px, 17vw, 96px); /* ~64px on a 375px phone */
+  --card-w-mini: clamp(24px, 6.5vw, 32px); /* opponents' fans */
+  --chip-size: clamp(30px, 8vw, 40px);
+  --avatar-size: clamp(44px, 12vw, 56px);
+  --tap-min: 44px; /* smallest comfortable touch target */
+
+  /* Motion */
+  --dur-instant: 90ms;
+  --dur-fast: 160ms;
+  --dur-base: 260ms;
+  --dur-slow: 420ms;
+  --dur-flight: 520ms; /* card flights: deal, play, draw */
+  --stagger: 70ms; /* delay between cards in a deal */
+  --arc-lift: 56px; /* how high a flying card rises mid-flight */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1); /* overshoot for pops and landings */
+}
+
+/* ---------------------------- Night table ---------------------------- */
+/* Deeper felt and a warm lamp-like glow in the middle. Defined once as a
+   mixin-like block and applied in two places: system dark mode (unless the
+   page forces light) and anything marked data-theme="dark". */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --felt: #1f4b5c;
+    --felt-deep: #10303c;
+    --felt-light: #2a5d70;
+    --vignette-edge: rgba(4, 10, 14, 0.72);
+    --lamp: rgba(255, 196, 120, 0.16);
+    --felt-grain: 0.09;
+    --wood-light: #8f5c33;
+    --wood-mid: #6c4222;
+    --wood-dark: #3f2512;
+    --card-face: #f1ece4; /* dimmer paper under lamp light */
+    --back-paper: #eee9e0;
+    --on-felt: #f4efe6;
+    --on-felt-muted: rgba(244, 239, 230, 0.7);
+    --panel: #1b2a31;
+    --panel-ink: #f1ece4;
+    --panel-muted: #a3b2b8;
+    --panel-line: rgba(241, 236, 228, 0.12);
+    --bubble: #fff8ec;
+    --shadow-card: 0.5px 1px 0 rgba(0, 0, 0, 0.2), 2px 4px 6px rgba(0, 0, 0, 0.35),
+      6px 12px 20px rgba(0, 0, 0, 0.3);
+    --shadow-card-lifted: 0.5px 1px 0 rgba(0, 0, 0, 0.2), 6px 12px 14px rgba(0, 0, 0, 0.38),
+      14px 26px 34px rgba(0, 0, 0, 0.34);
+    --shadow-prop: 1px 2px 0 rgba(0, 0, 0, 0.3), 3px 6px 10px rgba(0, 0, 0, 0.45);
+    --shadow-panel: 0 2px 4px rgba(0, 0, 0, 0.3), 0 14px 40px rgba(0, 0, 0, 0.5);
+  }
+}
+
+[data-theme='dark'] {
+  --felt: #1f4b5c;
+  --felt-deep: #10303c;
+  --felt-light: #2a5d70;
+  --vignette-edge: rgba(4, 10, 14, 0.72);
+  --lamp: rgba(255, 196, 120, 0.16);
+  --felt-grain: 0.09;
+  --wood-light: #8f5c33;
+  --wood-mid: #6c4222;
+  --wood-dark: #3f2512;
+  --card-face: #f1ece4;
+  --back-paper: #eee9e0;
+  --on-felt: #f4efe6;
+  --on-felt-muted: rgba(244, 239, 230, 0.7);
+  --panel: #1b2a31;
+  --panel-ink: #f1ece4;
+  --panel-muted: #a3b2b8;
+  --panel-line: rgba(241, 236, 228, 0.12);
+  --bubble: #fff8ec;
+  --shadow-card: 0.5px 1px 0 rgba(0, 0, 0, 0.2), 2px 4px 6px rgba(0, 0, 0, 0.35), 6px 12px 20px rgba(0, 0, 0, 0.3);
+  --shadow-card-lifted: 0.5px 1px 0 rgba(0, 0, 0, 0.2), 6px 12px 14px rgba(0, 0, 0, 0.38),
+    14px 26px 34px rgba(0, 0, 0, 0.34);
+  --shadow-prop: 1px 2px 0 rgba(0, 0, 0, 0.3), 3px 6px 10px rgba(0, 0, 0, 0.45);
+  --shadow-panel: 0 2px 4px rgba(0, 0, 0, 0.3), 0 14px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* ---------------------------- Reduced motion ---------------------------- */
+/* Flights and bounces become quick fades (the JS reads these too). */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-flight: 160ms;
+    --dur-slow: 160ms;
+    --stagger: 0ms;
+    --arc-lift: 0px;
+    --ease-bounce: ease-out;
+  }
+}

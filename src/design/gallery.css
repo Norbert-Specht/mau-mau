@@ -1,0 +1,461 @@
+/* ==========================================================================
+   Design gallery layout (only for /design — the components themselves live
+   in src/ui/theme/components.css).
+   ========================================================================== */
+
+/* ---------------------------- Page ---------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--felt-deep);
+}
+
+.page {
+  min-height: 100vh;
+  padding: var(--space-5) var(--space-4) var(--space-7);
+  font-family: var(--font-body);
+}
+
+.page__inner {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 980px;
+  margin: 0 auto;
+  display: grid;
+  gap: var(--space-7);
+}
+
+/* ---------------------------- Header ---------------------------- */
+.g-header h1 {
+  margin: 0;
+  font: 700 var(--text-2xl) / 1 var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+.g-header p {
+  margin: var(--space-2) 0 var(--space-4);
+  color: var(--on-felt-muted);
+  max-width: 60ch;
+}
+
+.g-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ---------------------------- Sections ---------------------------- */
+.g-section > h2 {
+  margin: 0 0 var(--space-1);
+  font: 600 var(--text-xl) / 1.1 var(--font-display);
+}
+
+.g-section > .g-lead {
+  margin: 0 0 var(--space-4);
+  color: var(--on-felt-muted);
+  max-width: 62ch;
+  font-size: var(--text-sm);
+}
+
+.g-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-5);
+}
+
+.g-item {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+}
+
+.g-caption {
+  font: 600 var(--text-xs) / 1.2 var(--font-body);
+  color: var(--on-felt-muted);
+  text-align: center;
+}
+
+.g-demo-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* ---------------------------- Proposal panel ---------------------------- */
+.g-proposal {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.g-proposal h3 {
+  margin: 0 0 var(--space-2);
+}
+
+.g-proposal ul {
+  margin: 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-sm);
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: var(--space-3);
+}
+
+.swatch {
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-xs);
+}
+
+.swatch__chip {
+  height: 44px;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--panel-line);
+}
+
+.swatch code {
+  color: var(--panel-muted);
+}
+
+.type-specimen {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.type-specimen .display {
+  font: 700 var(--text-2xl) / 1 var(--font-display);
+}
+
+/* ---------------------------- Table scenes ---------------------------- */
+.scenes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: var(--space-5);
+}
+
+/* A phone-shaped table: opponents on top, piles in the middle, hand at the bottom. */
+.scene {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr); /* don't let a wide hand widen the table */
+  min-height: 620px;
+  max-width: 440px;
+  width: 100%;
+  margin: 0 auto;
+  border-radius: var(--radius-lg);
+  --card-w: clamp(56px, 17vw, 70px); /* phone-sized cards even on a desktop screen */
+  overflow: hidden;
+  box-shadow: var(--shadow-panel);
+}
+
+.scene__tag {
+  position: absolute;
+  top: var(--space-2);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.3);
+  font: 600 var(--text-xs) / 1.5 var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.scene__opponents {
+  display: flex;
+  justify-content: space-around;
+  padding: var(--space-6) var(--space-2) 0;
+}
+
+.scene__center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+}
+
+.scene__side {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+}
+
+.scene__toast {
+  position: absolute;
+  top: 168px;
+  left: 18px;
+}
+
+/* Your hand: loose overlapping fan. --fan/--drop are set per card in JS. */
+.hand {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  padding: var(--space-5) var(--space-3) var(--space-5);
+  min-height: calc(var(--card-w) * 1.4 + 48px); /* fixed height: no layout shift as cards change */
+}
+
+.hand__slot {
+  flex: none;
+  transform-origin: 50% 130%;
+  transform: translateY(var(--drop, 0)) rotate(var(--fan, 0deg));
+}
+
+.hand__slot + .hand__slot {
+  margin-left: calc(var(--card-w) * -0.42); /* loose overlap like the reference */
+}
+
+/* Mau! button sits bottom-right, within thumb reach, above the hand. */
+.scene__mau {
+  position: absolute;
+  right: var(--space-3);
+  bottom: calc(var(--card-w) * 1.4 + 56px);
+  z-index: 2;
+}
+
+.scene__mau-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--card-w) * 1.4 + 70px);
+  transform: translateX(-50%);
+  z-index: 2;
+  opacity: 0;
+}
+
+.scene__mau-bubble,
+.seat .bubble-slot {
+  pointer-events: none;
+}
+
+/* Turn marker die tucked against the active avatar's top-left. */
+.seat__marker {
+  position: absolute;
+  left: -2px;
+  top: 2px;
+  z-index: 2;
+}
+
+.seat__marker .die {
+  --size: 26px;
+}
+
+/* Reaction bubbles float above the avatar. */
+.seat .bubble-slot {
+  position: absolute;
+  bottom: calc(100% - 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  opacity: 0;
+}
+
+.seat .stamp-slot {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  margin-left: -36px;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Penalty chips + "+2" bubble. */
+.penalty {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+.penalty__bubble {
+  position: absolute;
+  bottom: calc(100% + 18px);
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+}
+
+.penalty__label {
+  font: 600 var(--text-xs) / 1 var(--font-display);
+  color: var(--on-felt-muted);
+}
+
+/* ---------------------------- Demo areas ---------------------------- */
+.demo-felt {
+  position: relative;
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
+}
+
+.turn-track {
+  display: flex;
+  justify-content: space-around;
+  gap: var(--space-3);
+}
+
+.picker-demo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  min-height: 220px;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: rgba(6, 18, 24, 0.55);
+}
+
+.overlay[hidden] {
+  display: none;
+}
+
+.end-panel {
+  width: min(380px, 100%);
+  text-align: center;
+}
+
+.end-panel .display {
+  font: 700 var(--text-2xl) / 1 var(--font-display);
+  color: var(--suit-red);
+}
+
+.end-panel .score-row {
+  text-align: left;
+}
+
+.chips-inline {
+  display: flex;
+  gap: 2px;
+}
+
+.chips-inline .chip {
+  --chip-size: 26px;
+}
+
+/* ---------------------------- Menus preview ---------------------------- */
+.menu-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: var(--space-5);
+}
+
+.menu-screen {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-4);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
+  min-height: 560px;
+}
+
+.menu-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font: 700 var(--text-2xl) / 1 var(--font-display);
+}
+
+.menu-logo .card {
+  --w: 34px;
+}
+
+.mode-card {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.mode-card h3 {
+  margin: 0;
+}
+
+.mode-card p {
+  margin: 0;
+  color: var(--panel-muted);
+  font-size: var(--text-sm);
+}
+
+.name-field {
+  display: grid;
+  gap: 4px;
+  font: 600 var(--text-sm) / 1.2 var(--font-display);
+}
+
+.name-field input {
+  min-height: var(--tap-min);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--paper-ink);
+  font: 600 var(--text-md) / 1 var(--font-body);
+  box-shadow: var(--shadow-inset);
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.stepper {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.stepper .chip {
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity var(--dur-fast), transform var(--dur-base) var(--ease-bounce);
+}
+
+.stepper .chip[aria-pressed='true'] {
+  opacity: 1;
+  transform: translateY(-4px);
+}
+
+.seat-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.seat-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.12);
+  font: 600 var(--text-md) / 1 var(--font-display);
+}
+
+.seat-line .avatar {
+  --avatar-size: 36px;
+}
+
+.seat-line small {
+  margin-left: auto;
+  font: 600 var(--text-xs) / 1 var(--font-body);
+  color: var(--on-felt-muted);
+}
