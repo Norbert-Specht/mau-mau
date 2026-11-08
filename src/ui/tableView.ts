@@ -18,6 +18,7 @@ import { animalAvatar, BOT_ANIMALS, initialAvatar } from './theme/avatars';
 import { confetti, flash, flyArc, pop, shake, stamp } from './theme/motion';
 import { chipHtml, chipsFor, dieHtml } from './theme/props';
 import { suitSvg } from './theme/suits';
+import { playSound, setSoundEnabled, soundEnabled } from './sound';
 
 /* ---------------------------- Constants ---------------------------- */
 
@@ -37,6 +38,10 @@ const STAGGER_MS = 70;
 const BUBBLE_HOLD_MS = 1000;
 /** Spots on the suit picker's arc, in degrees from vertical. */
 const PICKER_ANGLES = [-60, -20, 20, 60];
+/** Speaker icons for the sound toggle (sound on / muted). */
+const SPEAKER = '<path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/>';
+const ICON_SOUND_ON = `<svg viewBox="0 0 24 24" aria-hidden="true">${SPEAKER}<path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`;
+const ICON_SOUND_OFF = `<svg viewBox="0 0 24 24" aria-hidden="true">${SPEAKER}<path d="M16 9.5l5 5M21 9.5l-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 
 /** Screen positions captured before a re-render, used to animate from. */
 interface Snapshot {
@@ -84,6 +89,7 @@ class TableView {
   private readonly unsubscribeNotice: () => void;
   private readonly el: {
     round: HTMLElement;
+    sound: HTMLButtonElement;
     opponents: HTMLElement;
     draw: HTMLButtonElement;
     discard: HTMLElement;
@@ -130,6 +136,7 @@ class TableView {
         <header class="game__bar">
           <button type="button" class="btn btn--ghost btn--small" data-action="menu">${STRINGS.menu}</button>
           <span class="game__round"></span>
+          <button type="button" class="icon-btn" data-action="sound"></button>
         </header>
 
         <!-- Opponents: a row on phones, around the table on wide screens -->
@@ -191,6 +198,7 @@ class TableView {
     const q = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
     this.el = {
       round: q('.game__round'),
+      sound: q('[data-action="sound"]'),
       opponents: q('.game__opponents'),
       draw: q('.pile--draw'),
       discard: q('.pile--discard'),
@@ -221,6 +229,7 @@ class TableView {
     this.marker.className = 'turn-die';
     this.marker.innerHTML = dieHtml(1 + Math.floor(Math.random() * 6));
 
+    this.renderSoundButton();
     root.addEventListener('click', this.onClick);
     window.addEventListener('resize', this.onResize);
     this.el.hostLeftOverlay.querySelector('[data-host-left]')!.addEventListener('click', () => this.leave());
@@ -560,6 +569,7 @@ class TableView {
           const mine = before.hand.get(e.card.id);
           const from = e.seat === v.you ? (mine?.rect ?? before.draw) : before.seats.get(e.seat);
           if (top && from) flyArc(top, from, { fromRotate: e.seat === v.you ? (mine?.angle ?? 0) : 0 });
+          playSound('swish');
 
           if (e.card.rank === '7' && rules.sevenDrawTwo && v.pendingDraw > 0) this.popPenalty();
           if (isWildJack(e.card, rules) && e.wish) pop(this.el.wishDisc, 380);
@@ -569,6 +579,7 @@ class TableView {
           break;
         }
         case 'drew': {
+          playSound('swish', drawDelay);
           if (e.seat === v.you) {
             for (const c of e.cards) {
               const el = handCards.find((h) => h.dataset.cardId === c.id);
@@ -587,16 +598,21 @@ class TableView {
         }
         case 'skipped': {
           stamp(e.seat === v.you ? this.el.meStamp : this.seats.get(e.seat)!.stamp);
+          playSound('stamp', 220); // when the stamp hits (see motion.stamp)
           if (this.meta.bots[e.seat]) this.say(e.seat, STRINGS.reactionOhNo, 900);
           break;
         }
         case 'mau':
           // Bots always call Mau; only show it when the Mau rule is in play.
-          if (rules.mauRequired) this.say(e.seat, STRINGS.mauButton);
+          if (rules.mauRequired) {
+            this.say(e.seat, STRINGS.mauButton);
+            playSound('mau');
+          }
           break;
         case 'roundOver': {
           const pile = this.el.discard.getBoundingClientRect();
           setTimeout(() => confetti({ x: pile.left + pile.width / 2, y: pile.top + pile.height / 2 }), 450);
+          playSound('win', 450);
           break;
         }
         default:
@@ -648,6 +664,10 @@ class TableView {
           if (back) flyArc(back, from, { delay, duration: 420 });
         }
         maxDelay = Math.max(maxDelay, delay);
+        // A swish for every other card keeps the sound lively without a wall of noise.
+        if ((round * n + k) % 2 === 0 && (seat === v.you ? handCards[round] : this.seats.get(seat)?.fan.children[round])) {
+          playSound('swish', delay);
+        }
       }
     }
     // Finally the starting card is turned up.
@@ -675,6 +695,7 @@ class TableView {
   private popPenalty(): void {
     const chips = [...this.el.penaltyStack.children];
     chips.slice(-2).forEach((chip, i) => pop(chip, i * 90));
+    playSound('clack', 120);
     this.el.penaltyBubble.textContent = STRINGS.pendingDraw(2);
     this.el.penaltyBubble.getAnimations().forEach((a) => a.cancel());
     flash(this.el.penaltyBubble, 700);
@@ -716,6 +737,18 @@ class TableView {
     }, delay);
   }
 
+  /**
+   * Shows the speaker icon for the current sound setting.
+   * @returns nothing
+   */
+  private renderSoundButton(): void {
+    const on = soundEnabled();
+    this.el.sound.innerHTML = on ? ICON_SOUND_ON : ICON_SOUND_OFF;
+    this.el.sound.setAttribute('aria-pressed', String(on));
+    this.el.sound.setAttribute('aria-label', on ? STRINGS.soundOn : STRINGS.soundOff);
+    this.el.sound.title = on ? STRINGS.soundOn : STRINGS.soundOff;
+  }
+
   /* ---------------------------- Input ---------------------------- */
 
   /**
@@ -735,6 +768,11 @@ class TableView {
         break;
       case 'mau':
         this.conn.submit({ type: 'mau', player });
+        break;
+      case 'sound':
+        setSoundEnabled(!soundEnabled());
+        this.renderSoundButton();
+        playSound('clack');
         break;
       case 'draw':
         if (canDraw(v)) this.conn.submit({ type: 'draw', player });

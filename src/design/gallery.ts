@@ -8,12 +8,15 @@
 
 import '../ui/theme/tokens.css';
 import '../ui/theme/components.css';
+import '../ui/menus.css';
 import './gallery.css';
 import { makeCard, type Card, type Rank, type Suit } from '../engine';
 import { cardImageUrl } from '../ui/cardView';
 import { animalAvatar, initialAvatar, type Animal } from '../ui/theme/avatars';
 import { confetti, flash, flyArc, pop, setSimulateReducedMotion, shake, stamp } from '../ui/theme/motion';
+import { CHIP_VALUES, chipHtml, chipsFor, dieHtml, type ChipColor } from '../ui/theme/props';
 import { suitSvg } from '../ui/theme/suits';
+import { playSound, setSoundEnabled, soundEnabled, type SoundName } from '../ui/sound';
 
 /* ---------------------------- Small builders ---------------------------- */
 /* Each returns an HTML string; the gallery is static, so strings keep it short. */
@@ -38,64 +41,6 @@ function c(code: string): Card {
 function cardHtml(card: Card | null, classes = ''): string {
   if (!card) return `<div class="card card--back ${classes}" aria-hidden="true"></div>`;
   return `<div class="card ${classes}" role="img" aria-label="${card.id}"><div class="card__face" style="background-image:url('${cardImageUrl(card)}')"></div></div>`;
-}
-
-type ChipColor = 'white' | 'red' | 'green' | 'navy';
-
-/**
- * One casino chip.
- * @param color - chip color
- * @param label - text in the middle
- * @param i - position in a stack (0 = bottom)
- * @returns markup
- */
-function chipHtml(color: ChipColor, label = '', i = 0): string {
-  return `<span class="chip chip--${color}" style="--i:${i}">${label}</span>`;
-}
-
-/** Chip values used to "pay out" points, biggest first. */
-const CHIP_VALUES: [number, ChipColor][] = [
-  [100, 'navy'],
-  [25, 'green'],
-  [5, 'red'],
-  [1, 'white'],
-];
-
-/**
- * Turns a point total into the fewest chips (like a cashier would).
- * @param points - total points
- * @returns chip markup
- */
-function chipsFor(points: number): string {
-  let rest = points;
-  const out: string[] = [];
-  for (const [value, color] of CHIP_VALUES) {
-    while (rest >= value && out.length < 6) {
-      out.push(chipHtml(color, String(value)));
-      rest -= value;
-    }
-  }
-  return out.join('');
-}
-
-/** Pip positions on a 3×3 grid for each die face (row, column, 1-based). */
-const PIPS: Record<number, [number, number][]> = {
-  1: [[2, 2]],
-  2: [[1, 1], [3, 3]],
-  3: [[1, 1], [2, 2], [3, 3]],
-  4: [[1, 1], [1, 3], [3, 1], [3, 3]],
-  5: [[1, 1], [1, 3], [2, 2], [3, 1], [3, 3]],
-  6: [[1, 1], [1, 3], [2, 1], [2, 3], [3, 1], [3, 3]],
-};
-
-/**
- * A red die showing `n`.
- * @param n - face value 1–6
- * @returns markup
- */
-function dieHtml(n: number): string {
-  const pips = PIPS[n].map(([r, col]) => `<span class="die__pip" style="grid-area:${r}/${col}"></span>`).join('');
-  return `<span class="die" role="img" aria-label="die showing ${n}">${pips}</span>`;
 }
 
 interface SeatOptions {
@@ -229,7 +174,8 @@ function proposalSection(): string {
           <li>Paper cards (Kenney faces cropped onto off-white, rounded, layered shadows), seigaiha back, messy discard pile (±3°)</li>
           <li>Casino chips (scores, 7-penalty stack), red die as turn marker</li>
           <li>Seats: round avatars (animals for bots, initials for people), card-count badge, fan of backs, gold glow when active</li>
-          <li>Speech bubbles (reactions, Mau!), toasts near players, collapsible history drawer</li>
+          <li>Speech bubbles (bot reactions, Mau!) — no toasts or turn history (decided)</li>
+          <li>No playing hints: your cards only lift and tilt on hover; nothing shows whether they fit</li>
           <li>Tactile buttons, big round Mau! token, rule toggles as chips, share link as a ticket</li>
           <li>Suit picker as four tokens fanning out; wished suit as a big badge next to the pile</li>
           <li>Skip stamp, shake for the Mau penalty, suit-shaped confetti, end-of-round screen with score chips</li>
@@ -242,7 +188,7 @@ function proposalSection(): string {
           <li>Card flights use FLIP along an arc (lift ${'--arc-lift'}), ~520 ms, landing with a tiny bounce</li>
           <li>Deal staggers 70 ms per card; pops and badges overshoot slightly</li>
           <li>Reduced motion: flights and bounces become 160 ms fades, no looping pulses</li>
-          <li>Sounds (later step): swish, chip clack, Mau call via Web Audio, off until you switch them on</li>
+          <li>Sounds: swish, chip clack, stamp, Mau call, win jingle — Web Audio, off until switched on</li>
         </ul>
       </div>
     </div>
@@ -273,10 +219,9 @@ function sceneHtml(theme: 'light' | 'dark'): string {
         }
       </div>
     </div>
-    <span class="scene__toast toast">Jonas played ${suitSvg(theme === 'light' ? 'spades' : 'clubs')} ${theme === 'light' ? 'Bube' : '7'}</span>
     <span class="scene__mau-bubble bubble bubble--big">Mau!</span>
-    <div class="scene__mau"><button class="mau-btn ${theme === 'light' ? 'mau-btn--pulse' : ''}" type="button">Mau!</button></div>
-    <div class="hand">${handHtml(['7H', 'QH', '8D', 'AH', '10C', 'KS'], ['card--playable', 'card--playable', 'card--sunk', 'card--playable card--lifted', 'card--sunk', 'card--sunk'])}</div>
+    <div class="scene__mau"><button class="mau-btn" type="button">Mau!</button></div>
+    <div class="hand">${handHtml(['7H', 'QH', '8D', 'AH', '10C', 'KS'], ['', '', '', 'card--lifted'])}</div>
   </div>`;
 }
 
@@ -308,8 +253,6 @@ function cardsSection(): string {
     <div class="g-row" style="margin-top:var(--space-6)">
       <div class="g-item">${cardHtml(c('QH'), 'card--interactive')}<span class="g-caption">Normal (hover me)</span></div>
       <div class="g-item">${cardHtml(c('QH'), 'card--lifted')}<span class="g-caption">Lifted + tilted</span></div>
-      <div class="g-item">${cardHtml(c('QH'), 'card--playable')}<span class="g-caption">Playable glow</span></div>
-      <div class="g-item">${cardHtml(c('QH'), 'card--sunk')}<span class="g-caption">Unplayable: sinks</span></div>
       <div class="g-item"><div class="pile pile--discard">${discardHtml(['8H', 'QH', 'QS', 'QD'])}</div><span class="g-caption">Messy pile (±3°)</span></div>
     </div>
   </section>`;
@@ -383,7 +326,7 @@ function playersSection(): string {
 }
 
 /**
- * Buttons, toggles, Mau button, ticket, toasts and the history drawer.
+ * Buttons, toggles, the Mau button and the share ticket.
  * @returns markup
  */
 function controlsSection(): string {
@@ -412,7 +355,6 @@ function controlsSection(): string {
       </div>
       <div class="g-row" style="margin-top:var(--space-6);align-items:center">
         <div class="g-item"><button class="mau-btn" type="button" data-demo="mau">Mau!</button><span class="g-caption">Idle (press me)</span></div>
-        <div class="g-item"><button class="mau-btn mau-btn--pulse" type="button">Mau!</button><span class="g-caption">Pulsing: you'll need it</span></div>
         <div class="g-item"><button class="mau-btn mau-btn--pressed" type="button">Mau!</button><span class="g-caption">Called</span></div>
         <div class="g-item" style="position:relative"><span class="bubble bubble--big" id="mau-call-bubble" style="opacity:0">Mau!</span><span class="g-caption">Speech bubble above your hand</span></div>
       </div>
@@ -421,22 +363,6 @@ function controlsSection(): string {
           <div class="ticket__main"><span class="ticket__label">Admit friends · Mau-Mau</span><span class="ticket__link">mau-mau-three.vercel.app/#room=k3m9xq2a</span></div>
           <button class="ticket__stub" type="button" data-demo="copy">Copy</button>
         </div>
-      </div>
-      <div class="g-row" style="margin-top:var(--space-6);align-items:flex-start">
-        <div style="display:grid;gap:var(--space-2);justify-items:start">
-          <span class="toast">Anna played ${suitSvg('hearts')} 7 – you draw 2</span>
-          <span class="toast">Jonas is skipped</span>
-          <span class="toast">Lena wishes ${suitSvg('spades')} Pik</span>
-        </div>
-        <details class="drawer" style="flex:1;min-width:260px" open>
-          <summary>History</summary>
-          <ol class="drawer__list">
-            <li>Anna played ${suitSvg('hearts')} 9</li>
-            <li>Jonas played ${suitSvg('hearts')} König</li>
-            <li>You played ${suitSvg('spades')} Bube – Ich wünsche mir ${suitSvg('hearts')}</li>
-            <li>Lena drew a card</li>
-          </ol>
-        </details>
       </div>
     </div>
   </section>`;
@@ -527,7 +453,7 @@ function menusSection(): string {
         <div class="panel mode-card">
           <h3>Play the computer</h3>
           <p>Opponents</p>
-          <div class="stepper">${['1', '2', '3'].map((n, i) => `<button class="chip chip--${(['white', 'red', 'green'] as ChipColor[])[i]}" aria-pressed="${i === 1}" type="button">${n}</button>`).join('')}</div>
+          <div class="chip-row">${['1', '2', '3'].map((n, i) => `<label class="chip-radio"><input type="radio" name="opp-demo" value="${n}" ${i === 1 ? 'checked' : ''} />${chipHtml((['white', 'red', 'green'] as ChipColor[])[i], n)}</label>`).join('')}</div>
           <p>Bot strength</p>
           <div class="chip-row">${['Easy', 'Normal', 'Hard'].map((d, i) => `<label class="toggle-chip"><input type="radio" name="strength-demo" ${i === 1 ? 'checked' : ''}/><span class="toggle-chip__dot chip chip--navy"></span>${d}</label>`).join('')}</div>
           <button class="btn btn--primary btn--big">Start game</button>
@@ -557,6 +483,28 @@ function menusSection(): string {
   </section>`;
 }
 
+/**
+ * Sound effects demo (Web Audio, off until switched on).
+ * @returns markup
+ */
+function soundsSection(): string {
+  const sounds: [SoundName, string][] = [
+    ['swish', 'Card swish'],
+    ['clack', 'Chip clack'],
+    ['stamp', 'Stamp'],
+    ['mau', 'Mau!'],
+    ['win', 'Mau-Mau! jingle'],
+  ];
+  return `<section class="g-section">
+    <h2>Sounds</h2>
+    <p class="g-lead">Generated with the Web Audio API — no files. Off by default and silent until you switch them on (browsers block audio before a tap anyway).</p>
+    <div class="demo-felt felt">
+      <label class="toggle-chip"><input type="checkbox" id="sound-toggle" ${soundEnabled() ? 'checked' : ''} />${chipHtml('green')}Sound on</label>
+      <div class="g-demo-buttons">${sounds.map(([name, label]) => `<button class="btn" data-sound="${name}">${label}</button>`).join('')}</div>
+    </div>
+  </section>`;
+}
+
 /* ---------------------------- Render ---------------------------- */
 
 const root = document.querySelector<HTMLElement>('#gallery')!;
@@ -571,6 +519,7 @@ root.innerHTML = `<div class="page felt"><div class="page__inner">
   ${pickerSection()}
   ${motionSection()}
   ${menusSection()}
+  ${soundsSection()}
 </div></div>`;
 
 /**
@@ -735,7 +684,14 @@ function win(): void {
   }, 700);
 }
 
+root.querySelector('#sound-toggle')!.addEventListener('change', (e) => setSoundEnabled((e.target as HTMLInputElement).checked));
+
 root.addEventListener('click', (e) => {
+  const soundBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-sound]');
+  if (soundBtn) {
+    playSound(soundBtn.dataset.sound as SoundName);
+    return;
+  }
   const target = (e.target as HTMLElement).closest<HTMLElement>('[data-demo], .suit-picker--open .suit-token');
   if (!target) return;
 
